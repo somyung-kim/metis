@@ -1,0 +1,12 @@
+# BMad user config (personal overrides)
+_bmad/**/*.user.toml
+
+# Claude Code local/personal settings (machine-specific)
+.claude/settings.local.json
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
