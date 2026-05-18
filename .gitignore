@@ -13,3 +13,6 @@ _bmad/**/*.user.toml
 
 # Node
 node_modules/
+
+# Metis runtime memory (this repo dogfoods Metis on itself)
+.metis/
