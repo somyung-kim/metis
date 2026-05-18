@@ -10,3 +10,6 @@ _bmad/**/*.user.toml
 # Editor
 .vscode/
 .idea/
+
+# Node
+node_modules/

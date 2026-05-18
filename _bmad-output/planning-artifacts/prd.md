@@ -186,7 +186,7 @@ Three phases. Each phase has a goal, dependencies, success criteria (verificatio
 - [ ] `plugin.json` with metadata + command/agent declarations
 - [ ] `commands/do.md` — invokes `scripts/metis.mjs do <task>`
 - [ ] `commands/tag.md` — invokes `scripts/metis.mjs tag <good|bad>`
-- [ ] `agents/metis-codex.md` — agent profile for Codex delegation
+- [x] ~~`agents/metis-codex.md` — agent profile for Codex delegation~~ — **dropped (2026-05-18):** delegation is script-driven via the ProviderAdapter (`scripts/lib/providers/codex.mjs`); a Claude subagent has no functional role in v1.
 - [ ] `scripts/metis.mjs` — entry point (CLI arg dispatch)
 - [ ] `scripts/lib/memory.mjs` — open db, run migrations, insert/update rows, set WAL + busy_timeout + foreign_keys pragmas, register exit handler
 - [ ] `scripts/lib/migrations/001_init.sql` — schema from §"What Gets Stored" + `PRAGMA user_version = 1`
@@ -401,6 +401,10 @@ Copilot adapter follows the identical shape with `gh copilot suggest` or equival
 
 **Verify both CLI invocation flags at implementation time.** The example above uses `spawn('codex', ['exec', prompt], ...)` and the Copilot equivalent uses `gh copilot suggest` — but Codex CLI's `exec` flag and Copilot CLI's exact non-interactive flag both need confirmation against the installed versions before wiring up. Test each adapter standalone with a known input before integrating into `/metis:do`.
 
+**v1 Codex invocation is LOCKED (2026-05-18):** `codex exec "<prompt>" --sandbox workspace-write`. The `--sandbox workspace-write` flag is required — `codex exec` defaults to a read-only sandbox, which would block code-editing delegations (e.g., the "fix the typo" example). The `codex.mjs` adapter must add `'--sandbox', 'workspace-write'` to the args array; do not copy the read-only snippet above verbatim. stdout = final agent message (the result); stderr = progress stream.
+
+**Delegation auth/billing is the user's ambient `codex` setup — Metis manages neither.** The adapter just spawns `codex exec` and inherits whatever auth `codex login` / `CODEX_API_KEY` provides. API-key auth is OpenAI-recommended for this automation use-case and is billed separately (usage-based) from any ChatGPT subscription — analogous to `claude -p`. (Forward constraint: a future "Claude provider" should use Claude Code's native Task subagent, NOT `claude -p`, which post-2026-06-15 draws from a separate Agent SDK credit pool.)
+
 **ProviderAdapter interface (required for both):**
 ```ts
 type ProviderAdapter = {
@@ -412,6 +416,17 @@ type ProviderAdapter = {
 `signal` is required, not optional. Cancellation cannot be bolted on later.
 
 **AbortSignal source:** Node's `spawn({ signal })` is the correct mechanism. How Claude Code propagates a cancellation event from the user (Ctrl-C, plugin lifecycle, session end) into the `signal` parameter of the plugin's `delegate()` call needs confirming against Claude Code's plugin runtime API at implementation time. If Claude Code does not pass an AbortSignal through the plugin invocation, fall back to constructing one inside `metis.mjs` keyed to process-level SIGINT — but document this choice in the README.
+
+### What the AbortSignal concern actually is
+
+This is the one thing worth addressing. The question: what's in `metis.db` if the subprocess is aborted mid-delegation?
+
+Honest answer that fits in the PRD, not a new document — the delegation write is ordered so abort is always safe:
+
+- **Pre-delegation:** a row is INSERTED with `task`, `provider`, `context_injected`, `ts`. `result` is NULL.
+- **During delegation:** the streamed result is held in memory, not written to the db yet.
+- **On abort:** the db row stays as-is (NULL `result`). No partial result is written. `tag` stays NULL.
+- The user can see the aborted row in `/metis:status` as "no result" and decide to retry or delete.
 
 ### Routing rule (deliberately dumb)
 
