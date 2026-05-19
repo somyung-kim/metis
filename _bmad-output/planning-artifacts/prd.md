@@ -94,6 +94,8 @@ CREATE VIRTUAL TABLE delegations_fts
   );
 ```
 
+> **External-content FTS5 is not self-populating — sync triggers are MANDATORY, not optional.** `delegations_fts` uses `content='delegations'`, so it indexes nothing until INSERT/UPDATE-of-`task`/DELETE triggers mirror rows into it (plus a one-time `rebuild` to backfill). Without them this index is permanently empty and all retrieval silently returns nothing. The triggers ship in `scripts/lib/migrations/002_fts_sync.sql` (see Build Order → Phase 1.1). The original schema omitted them — that omission is the defect Phase 1.1 closes.
+
 No bandit arms table. No four networks. No Q-values. No failure_class taxonomy. Add columns when reality demands them, not before.
 
 **Why SQLite over flat JSON:** FTS5 gives keyword search for "find similar past tasks" — which is exactly what retrieval needs. Atomic writes prevent corruption. One dependency: `better-sqlite3`.
@@ -195,6 +197,33 @@ Three phases. Each phase has a goal, dependencies, success criteria (verificatio
 - [ ] `task_type` keyword classifier function in `metis.mjs`
 
 **Usage period:** 3–5 days. Run real delegations on actual code. Tag each one good or bad.
+
+---
+
+### Phase 1.1: FTS Index Population (Phase 1 spec-defect closure)
+
+> **Why this exists (2026-05-19):** The Phase 1 schema (§"What Gets Stored") declared an external-content FTS5 table but omitted the sync triggers that pattern *requires*, so the index was never populated. Not in the original phase plan — discovered during Phase 2 planning (Phase 2 is the first phase that reads the index). This closes that defect before Phase 2 builds on it.
+
+**Goal:** `delegations_fts` actually stays in sync with `delegations` and is backfilled from rows recorded before the fix. Scope is ONLY this — nothing reads the index yet (stays Phase 2).
+
+**Dependencies:** Phase 1 merged. Real per-repo dbs at `user_version = 1`.
+
+**Success Criteria (verification gate — via the real `openDb()`/`migrate()` path on a COPY of a real db; assert with `MATCH`, never `count(*)`):**
+1. Backfill: `MATCH` on a token literally present in a pre-migration `task` returns that existing row (`bm25()` JOIN form)
+2. INSERT trigger: a newly inserted row is found by `MATCH` on a token from its task
+3. UPDATE-of-`task` trigger (update `task` directly — no app helper does): old token → 0 rows, new token → 1 row
+4. DELETE trigger: deleted row's token → 0 rows
+5. Non-`task` update (`updateResult()`/`tagLatest()`) does NOT corrupt the index — a token from the unchanged task still matches
+6. Parity: a backfilled row and a post-migration trigger-inserted row are both returned by `MATCH` on a shared token
+7. `user_version = 2`; a second `openDb()` does not re-run `002` (idempotent, no error)
+8. Atomicity: a forced mid-migration failure on a copy rolls back fully (`user_version` still 1, no triggers left)
+
+**Tasks:**
+- [ ] `scripts/lib/migrations/002_fts_sync.sql` — transaction-wrapped: `ai`/`ad` triggers, `au` as `AFTER UPDATE OF task`, one-time `rebuild` backfill, `PRAGMA user_version = 2`
+- [ ] PRD: this section + the mandatory-triggers callout by the schema + name `002` in the migration-runner notes
+- [ ] No changes to `memory.mjs`/`metis.mjs` (the existing directory-driven, version-gated runner auto-applies `002`)
+
+**Out of scope:** `findSimilar`, prompt template, token budget, `/metis:status`, `retrieval.mjs`, `followup_messages`, routing/Copilot — all Phase 2/3. Runner-level per-migration transaction wrapping is a separate future hardening, deliberately not done here.
 
 ---
 
@@ -450,7 +479,8 @@ Use `better-sqlite3` + `PRAGMA user_version` + numbered SQL files. This is the v
 ```
 scripts/lib/migrations/
   001_init.sql      <- creates delegations + delegations_fts + sets user_version=1
-  (future versions added here as 002_*.sql, 003_*.sql, ...)
+  002_fts_sync.sql  <- external-content FTS5 sync triggers + one-time rebuild backfill; sets user_version=2 (Phase 1.1)
+  (future versions added here as 003_*.sql, ...)
 ```
 
 Migration runner on plugin load:
