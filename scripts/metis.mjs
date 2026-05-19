@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { openDb, insertDelegation, updateResult, tagLatest } from './lib/memory.mjs';
+import { openDb, insertDelegation, updateResult, tagLatest, findSimilar } from './lib/memory.mjs';
+import { buildPrompt } from './lib/retrieval.mjs';
 import * as codex from './lib/providers/codex.mjs';
 
 function classifyTaskType(task) {
@@ -28,15 +29,18 @@ async function runDo(task) {
   }
   const metisDir = ensureMetisDir();
   const db = openDb(path.join(metisDir, 'metis.db'));
+  // Retrieve BEFORE inserting the current row so the task cannot match itself.
+  const past = findSimilar(db, task, 3);
+  const { prompt, contextInjected } = buildPrompt(past, task);
   const id = insertDelegation(db, {
     ts: Math.floor(Date.now() / 1000),
     task,
     taskType: classifyTaskType(task),
     provider: codex.name,
-    contextInjected: null, // Phase 2 adds FTS retrieval; no injection in Phase 1
+    contextInjected,
   });
   try {
-    const result = await codex.delegate({ prompt: task, signal: undefined });
+    const result = await codex.delegate({ prompt, signal: undefined });
     updateResult(db, id, result);
     process.stdout.write(result);
   } catch (err) {

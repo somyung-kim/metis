@@ -54,7 +54,8 @@ metis/
   scripts/
     metis.mjs          ← main entry (router + memory)
     lib/
-      memory.mjs       ← SQLite read/write
+      memory.mjs       ← SQLite read/write + findSimilar (FTS5 recall)
+      retrieval.mjs    ← prompt-template builder + token budget (Phase 2a)
       router.mjs       ← provider selection
       providers/
         codex.mjs
@@ -400,7 +401,7 @@ Current task: {user_task}
 
 **Token budget:** Hard cap at ~1500 tokens total for the `<past_work>` block. If 3 past delegations would exceed this, take 2. If 2 exceed, take 1. If even 1 entry exceeds 1500 tokens after 500-char truncation (extremely unlikely), truncate that single entry's result further. Token estimation: `Math.ceil(text.length / 4)`.
 
-**No past delegations match:** the entire `<past_work>...</past_work>` block is omitted. Just `Current task: {user_task}` is sent.
+**No past delegations match:** the entire `<past_work>...</past_work>` block is omitted and `context_injected` is NULL. The **raw task is sent unchanged** — no `<past_work>`, and no `Current task:` prefix either. (Phase 2 gate 4 — "only the raw task goes to Codex" — is authoritative over the looser "`Current task: {user_task}` is sent" wording above; this preserves exact Phase 1 behavior when there is no memory to inject. Resolved 2026-05-19, Phase 2a.)
 
 ### Provider integration
 
