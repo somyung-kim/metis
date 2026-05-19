@@ -498,7 +498,7 @@ function migrate(db) {
 }
 ```
 
-Each migration file is atomic — if it fails, the transaction rolls back and `user_version` is unchanged.
+Atomicity is per-file and the file owns it: the runner calls `db.exec(sql)` with no transaction or error handling of its own, so a migration that must be all-or-nothing wraps its body in `BEGIN; … COMMIT;` (see `002_fts_sync.sql`). On a mid-file failure nothing is committed; the open transaction is rolled back when the connection closes (the runner does not issue `ROLLBACK`), so `user_version` stays at the prior value and the next open retries cleanly. `001_init.sql` runs only against a fresh empty db, so it needs no wrapper.
 
 ### `.metis/.gitignore` (auto-created)
 
