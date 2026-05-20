@@ -51,3 +51,28 @@ export function tagLatest(db, tag) {
   db.prepare('UPDATE delegations SET tag = ? WHERE id = ?').run(tag, row.id);
   return row.id;
 }
+
+// Sanitize task text for an FTS5 MATCH: quote each alnum token as a literal
+// and OR-join (recall-oriented). Quoting neutralizes FTS operators/special
+// chars, so the produced query can never be a syntax error. No tokens -> null.
+function ftsQuery(taskText) {
+  const toks = String(taskText).toLowerCase().match(/[a-z0-9]+/g);
+  if (!toks || toks.length === 0) return null;
+  return toks.map((t) => `"${t}"`).join(' OR ');
+}
+
+// Caller runs this BEFORE inserting the current delegation, so the current
+// task cannot match itself (no self-match exclusion needed).
+export function findSimilar(db, taskText, limit = 3) {
+  const q = ftsQuery(taskText);
+  if (!q) return [];
+  return db
+    .prepare(
+      `SELECT d.* FROM delegations d
+       JOIN delegations_fts f ON d.id = f.rowid
+       WHERE delegations_fts MATCH ?
+       ORDER BY bm25(delegations_fts) ASC
+       LIMIT ?`
+    )
+    .all(q, limit);
+}
