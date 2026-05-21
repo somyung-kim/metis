@@ -79,3 +79,32 @@ export function findSimilar(db, taskText, limit = 3) {
     )
     .all(q, limit);
 }
+
+export function lastDelegations(db, n = 10) {
+  return db
+    .prepare(
+      'SELECT id, ts, task, task_type, provider, tag FROM delegations ORDER BY id DESC LIMIT ?'
+    )
+    .all(n);
+}
+
+export function weeklySummary(db, sinceTs) {
+  const row = db
+    .prepare(
+      `SELECT
+         COUNT(*) AS total,
+         SUM(CASE WHEN tag IS NOT NULL THEN 1 ELSE 0 END) AS tagged,
+         SUM(CASE WHEN tag = 'good' THEN 1 ELSE 0 END) AS good,
+         SUM(CASE WHEN tag = 'bad'  THEN 1 ELSE 0 END) AS bad
+       FROM delegations
+       WHERE ts >= ?`
+    )
+    .get(sinceTs);
+  // SUM() returns NULL when no rows match the WHERE; coerce the SUMs to 0.
+  // COUNT(*) is already 0 in that case — the `|| 0` on `total` is for symmetry.
+  const total = row.total || 0;
+  const tagged = row.tagged || 0;
+  const good = row.good || 0;
+  const bad = row.bad || 0;
+  return { total, tagged, good, bad, untagged: total - tagged };
+}
