@@ -100,7 +100,8 @@ export function weeklySummary(db, sinceTs) {
        WHERE ts >= ?`
     )
     .get(sinceTs);
-  // SUM() returns NULL when no rows match the WHERE; coerce all to 0.
+  // SUM() returns NULL when no rows match the WHERE; coerce the SUMs to 0.
+  // COUNT(*) is already 0 in that case — the `|| 0` on `total` is for symmetry.
   const total = row.total || 0;
   const tagged = row.tagged || 0;
   const good = row.good || 0;
