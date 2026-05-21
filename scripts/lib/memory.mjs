@@ -63,6 +63,8 @@ function ftsQuery(taskText) {
 
 // Caller runs this BEFORE inserting the current delegation, so the current
 // task cannot match itself (no self-match exclusion needed).
+// Excludes rows with NULL result: aborted/failed past delegations have no
+// useful output to inject and would otherwise waste a retrieval slot.
 export function findSimilar(db, taskText, limit = 3) {
   const q = ftsQuery(taskText);
   if (!q) return [];
@@ -71,6 +73,7 @@ export function findSimilar(db, taskText, limit = 3) {
       `SELECT d.* FROM delegations d
        JOIN delegations_fts f ON d.id = f.rowid
        WHERE delegations_fts MATCH ?
+         AND d.result IS NOT NULL
        ORDER BY bm25(delegations_fts) ASC
        LIMIT ?`
     )

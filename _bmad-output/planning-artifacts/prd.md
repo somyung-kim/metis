@@ -107,7 +107,7 @@ No bandit arms table. No four networks. No Q-values. No failure_class taxonomy. 
 
 Before `/metis:do` calls the provider, run one FTS5 query: find the 3 most similar past delegations to the current task. Inject them into the provider's prompt as "previous related work on this codebase" with their outcomes (tagged good/bad).
 
-**Token budget:** Hard cap at ~1,500 tokens of injected context.
+**Token budget:** Best-effort cap at ~1,500 tokens of injected context (see Implementation Notes for the mechanism's limit).
 - 3 past delegations over budget → take 2
 - 2 over budget → take 1
 - 1 over budget → truncate to 1,500 tokens
@@ -399,7 +399,7 @@ Current task: {user_task}
 
 **`truncated_result`:** First 500 characters of `result`, raw. No smart extraction in v1. If `result` is shorter than 500 chars, use the whole thing. Append `…` (single ellipsis char) if truncated.
 
-**Token budget:** Hard cap at ~1500 tokens total for the `<past_work>` block. If 3 past delegations would exceed this, take 2. If 2 exceed, take 1. If even 1 entry exceeds 1500 tokens after 500-char truncation (extremely unlikely), truncate that single entry's result further. Token estimation: `Math.ceil(text.length / 4)`.
+**Token budget:** Best-effort cap at ~1500 tokens total for the `<past_work>` block. If 3 past delegations would exceed this, take 2. If 2 exceed, take 1. If even 1 entry exceeds 1500 tokens after 500-char truncation (extremely unlikely), truncate that single entry's result further. Token estimation: `Math.ceil(text.length / 4)`. **Limit of the mechanism (2026-05-21):** truncation shrinks `result` only, not `task` — a pathological past `task` length can exceed the cap even at K=1 with `result` shrunk to empty. The produced block is well-formed but over budget; the "cap" is best-effort, not hard.
 
 **No past delegations match:** the entire `<past_work>...</past_work>` block is omitted and `context_injected` is NULL. The **raw task is sent unchanged** — no `<past_work>`, and no `Current task:` prefix either. (Phase 2 gate 4 — "only the raw task goes to Codex" — is authoritative over the looser "`Current task: {user_task}` is sent" wording above; this preserves exact Phase 1 behavior when there is no memory to inject. Resolved 2026-05-19, Phase 2a.)
 
