@@ -1,7 +1,16 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { openDb, insertDelegation, updateResult, tagLatest, findSimilar } from './lib/memory.mjs';
+import {
+  openDb,
+  insertDelegation,
+  updateResult,
+  tagLatest,
+  findSimilar,
+  lastDelegations,
+  weeklySummary,
+} from './lib/memory.mjs';
 import { buildPrompt } from './lib/retrieval.mjs';
+import { formatStatus } from './lib/status.mjs';
 import * as codex from './lib/providers/codex.mjs';
 
 function classifyTaskType(task) {
@@ -69,12 +78,28 @@ function runTag(tag) {
   console.log(`metis: tagged delegation ${id} as ${tag}`);
 }
 
+function runStatus() {
+  const metisDir = path.join(process.cwd(), '.metis');
+  const sinceTs = Math.floor(Date.now() / 1000) - 7 * 86400;
+  let last = [];
+  let summary = { total: 0, tagged: 0, good: 0, bad: 0, untagged: 0 };
+  // Don't auto-create .metis/ from `status` — bootstrap is a `do`-flow side effect.
+  if (existsSync(metisDir)) {
+    const db = openDb(path.join(metisDir, 'metis.db'));
+    last = lastDelegations(db, 10);
+    summary = weeklySummary(db, sinceTs);
+  }
+  process.stdout.write(formatStatus({ last, summary }));
+}
+
 const command = process.argv[2];
 if (command === 'do') {
   await runDo(process.argv[3]);
 } else if (command === 'tag') {
   runTag(process.argv[3]);
+} else if (command === 'status') {
+  runStatus();
 } else {
-  console.error('usage: metis <do|tag> ...');
+  console.error('usage: metis <do|tag|status> ...');
   process.exit(1);
 }
