@@ -49,8 +49,9 @@ metis/
     tag.md             ← /metis:tag good|bad
     status.md          ← /metis:status
   agents/
-    metis-codex.md     ← delegates to Codex CLI
-    metis-copilot.md   ← delegates to Copilot CLI
+    metis-claude.md    ← Claude subagent definition (Phase 4; instruction-layer delegate)
+                       ← (Phase 1's metis-codex.md / metis-copilot.md were dropped: codex/copilot
+                       ←  are subprocess adapters under scripts/lib/providers/, not subagents.)
   scripts/
     metis.mjs          ← main entry (router + memory)
     lib/
@@ -78,7 +79,7 @@ CREATE TABLE delegations (
   ts               INTEGER NOT NULL,        -- unix timestamp
   task             TEXT    NOT NULL,        -- raw user request
   task_type        TEXT,                    -- 'review'|'fix'|'feature'|'refactor'|'explain'
-  provider         TEXT    NOT NULL,        -- 'codex'|'copilot'
+  provider         TEXT    NOT NULL,        -- 'codex'|'copilot'|'claude'
   context_injected TEXT,                    -- past delegations shown to provider (byte-for-byte)
   result           TEXT,                    -- provider output (truncated to ~4KB)
   tag              TEXT,                    -- 'good'|'bad'|NULL (untagged)
@@ -282,6 +283,40 @@ Three phases. Each phase has a goal, dependencies, success criteria (verificatio
 
 ---
 
+### Phase 4: Claude Provider (Subagent-Based)
+
+> **Why this exists (2026-05-22):** Phase 3 added Copilot as a second provider, but Codex and Copilot are both OpenAI-family subprocesses — they don't differentiate enough to test the routing thesis. The "fresh perspective from a different model" claim is only cleanly tested when Claude is a provider, and Claude is the highest-affinity provider (zero install friction, already authenticated). A retrospective concluded Claude should have been in v1's original scope; this phase corrects that. Added after Phase 3 was verified and merged.
+
+**Goal:** Claude joins as a third provider, delegated to via Claude Code's native Agent tool (not a subprocess). Routing rule treats `'claude'` identically to `'codex'`/`'copilot'`.
+
+**Dependencies:** Phase 3 complete and verified.
+
+**Architectural shift:** Claude is the first provider that does NOT conform to the subprocess `ProviderAdapter` interface. Delegation happens at the **command instruction layer** (in `do.md` via the Agent tool), not at the script layer. The script splits its existing `runDo` flow into three subcommands: `prepare` (classify + retrieve + INSERT row, output JSON), `delegate` (subprocess path for codex/copilot), `record` (UPDATE result, used by the subagent path). See §"Provider integration → Claude provider — interface exception".
+
+**Success Criteria (verification gate):**
+1. `agents/metis-claude.md` is recognized as a custom subagent (`name: metis-claude` in frontmatter; `tools: Read, Edit, Write, Bash, Grep, Glob`). Plugin runtime registers it as `metis:metis-claude` (`<plugin-name>:<agent-name>`); the Agent call in `do.md` MUST use that namespaced form.
+2. `/metis:do "<task>" --provider claude` forces Claude delegation; the subagent runs with fresh context (no Metis session transcript visible)
+3. Auto-routing: when the nearest tagged-good past delegation used Claude, `/metis:do "<task>"` (no flag) picks Claude
+4. After delegation, the row exists in `.metis/metis.db` with `provider='claude'` and `result` populated
+5. `/metis:do "<task>" --provider codex` and `--provider copilot` still work identically to Phase 3 (no regression)
+6. `/metis:tag good` and `/metis:tag bad` correctly tag the latest Claude delegation
+7. `/metis:status` includes Claude rows in the rolling summary
+8. AbortSignal contract preserved: if the subagent fails or is interrupted, the row stays with NULL `result` (no partial state)
+
+**Tasks:**
+- [ ] `agents/metis-claude.md` — subagent definition (frontmatter: name, description, tools; body: fresh-context delegate role)
+- [ ] `scripts/metis.mjs` — add `prepare` / `delegate` / `record` subcommands; remove the old monolithic `do` subcommand (only `do.md` called it)
+- [ ] `commands/do.md` — rewrite for split flow (add `Agent` to allowed-tools, conditional branch on provider; keep `disable-model-invocation: true` — the flag prevents auto-invocation but does not block in-command tool use)
+- [ ] `scripts/lib/router.mjs` — add `'claude'` to `KNOWN_PROVIDERS`
+
+**Out of scope:** No `scripts/lib/providers/claude.mjs` (Claude is not a subprocess adapter). No schema migration (the `provider` column already accepts any TEXT; the enum comment is a documentation update only). No task-type-aware subagent selection (`general-purpose` vs `code-architect` etc. is a v1.x follow-up).
+
+**Usage period:** 1 week of real delegations with all three providers active, observe whether auto-routing picks Claude.
+
+**Billing note:** The Agent tool spawned from inside `/metis:do` is **interactive use** — it stays on the ambient Claude Code subscription, not the Agent SDK credit pool. See §"Provider integration → Billing" for the June 15, 2026 split.
+
+---
+
 ### Decision Point (Week 4–5)
 
 **Not a phase.** A review checkpoint before any further work.
@@ -433,7 +468,7 @@ Copilot adapter follows the identical shape using `copilot -p <prompt> --silent 
 
 **v1 Codex invocation is LOCKED (2026-05-18):** `codex exec "<prompt>" --sandbox workspace-write`. The `--sandbox workspace-write` flag is required — `codex exec` defaults to a read-only sandbox, which would block code-editing delegations (e.g., the "fix the typo" example). The `codex.mjs` adapter must add `'--sandbox', 'workspace-write'` to the args array; do not copy the read-only snippet above verbatim. stdout = final agent message (the result); stderr = progress stream. **The adapter must also spawn with `stdio: ['ignore', 'pipe', 'pipe']`** — when stdin is a non-TTY pipe, `codex exec` tries to read it as a `<stdin>` block and blocks forever on an unclosed pipe ("Reading additional input from stdin..."); the snippet above omits `stdio` and would hang under Node's default piped stdin (verified 2026-05-18).
 
-**Delegation auth/billing is the user's ambient `codex` setup — Metis manages neither.** The adapter just spawns `codex exec` and inherits whatever auth `codex login` / `CODEX_API_KEY` provides. API-key auth is OpenAI-recommended for this automation use-case and is billed separately (usage-based) from any ChatGPT subscription — analogous to `claude -p`. (Forward constraint: a future "Claude provider" should use Claude Code's native Task subagent, NOT `claude -p`, which post-2026-06-15 draws from a separate Agent SDK credit pool.)
+**Delegation auth/billing is the user's ambient `codex` setup — Metis manages neither.** The adapter just spawns `codex exec` and inherits whatever auth `codex login` / `CODEX_API_KEY` provides. API-key auth is OpenAI-recommended for this automation use-case and is billed separately (usage-based) from any ChatGPT subscription — analogous to `claude -p`. See §"Billing" below for the Claude-side billing model (the Phase 4 Claude provider uses the Agent-tool path, which stays on the user's interactive Claude Code subscription).
 
 **ProviderAdapter interface (required for both):**
 ```ts
@@ -457,6 +492,46 @@ Honest answer that fits in the PRD, not a new document — the delegation write 
 - **During delegation:** the streamed result is held in memory, not written to the db yet.
 - **On abort:** the db row stays as-is (NULL `result`). No partial result is written. `tag` stays NULL.
 - The user can see the aborted row in `/metis:status` as "no result" and decide to retry or delete.
+
+### Claude provider — interface exception (Phase 4)
+
+Phase 4 adds Claude as a third provider, but **Claude does NOT conform to the `ProviderAdapter` interface above**. Codex and Copilot are subprocess adapters (`spawn` + `{ signal }`); Claude is delegated to via Claude Code's native **Agent tool**, which is only callable from the command instruction layer (markdown command files), not from Node.js.
+
+The `PROVIDERS` registry in `scripts/metis.mjs` therefore contains subprocess adapters only — `'claude'` is a recognized provider name (for routing) but has no entry in `PROVIDERS`. Delegation for Claude happens in `commands/do.md`:
+
+```
+1. Run `node metis.mjs prepare "<task>" [--provider <name>]`
+   → outputs JSON { rowId, provider, prompt }; row is INSERTed with NULL result
+2. Branch on provider:
+   - 'claude': spawn subagent via Agent tool (subagent_type: metis:metis-claude) with the prompt
+               → on completion, run `metis.mjs record <rowId> "<result>"`
+   - else:     run `metis.mjs delegate <rowId>` (subprocess via existing adapter)
+3. Relay result to user
+```
+
+**`do.md` constraint changes:**
+- `disable-model-invocation: true` is **preserved** — the flag prevents Claude from auto-invoking `/metis:do` based on ambient context (the original safety guarantee). It does NOT block in-command model reasoning or tool use when the user has explicitly invoked the command; `allowed-tools` controls that.
+- `allowed-tools` expands from `Bash(node *)` to `Bash(node *), Agent` (the Agent tool spawns the subagent)
+
+**AbortSignal contract preserved:** if the Agent tool fails or is interrupted before `record` runs, the row stays with NULL `result` — same failure semantics as a subprocess abort.
+
+**Why this asymmetry is correct:** the subprocess interface is the right abstraction for external CLIs (codex, copilot) where the script controls the lifecycle. Claude lives inside the same process tree as the host Claude Code session; coercing it through a subprocess wrapper would either require `claude -p` (wrong billing model — see §"Billing") or building an artificial IPC mechanism. The instruction-layer dispatch is the natural fit, and matches the established pattern for Claude Code plugins that spawn subagents (e.g. GSD).
+
+**Subagent definition (`agents/metis-claude.md`):**
+- `name: metis-claude` in frontmatter; Claude Code's plugin runtime registers it as `metis:metis-claude` (the `<plugin-name>:<agent-name>` namespacing applied to all plugin-defined agents). The Agent call in `do.md` MUST use the namespaced form `subagent_type: "metis:metis-claude"`; the bare `metis-claude` does not match.
+- `tools: Read, Edit, Write, Bash, Grep, Glob` — full coding tool surface, equivalent to what `codex exec --sandbox workspace-write` grants
+- Body: short role description framing the subagent as a fresh-context delegate for a coding task. The full task prompt (including any injected `<past_work>` block) is passed to the Agent call's `prompt` argument; the agent file is the system prompt only.
+
+### Billing
+
+Anthropic split programmatic Claude usage from interactive use as of **June 15, 2026**:
+
+- **Programmatic (`claude -p`, `@anthropic-ai/agent-sdk`):** draws from a separate Agent SDK credit pool. Monthly credits: Pro $20, Max 5x $100, Max 20x $200, Team Standard $20, Team Premium $100, Enterprise $20–$200.
+- **Interactive (Claude Code session, including Agent tool spawned from within a command):** stays on the ambient Claude Code subscription.
+
+Metis's Phase 4 Claude provider uses the Agent tool from inside `/metis:do` — this is **interactive use**, so it stays on the ambient subscription. Any future design that shells to `claude -p` instead would consume the user's separate Agent SDK credit pool, which is the wrong billing model for a delegation tool that runs frequently. The Agent-tool path avoids this entirely.
+
+For Codex and Copilot, the user's ambient CLI auth is used (`codex login` / `CODEX_API_KEY`; `gh auth login` / `GH_TOKEN`). Metis manages no provider auth.
 
 ### Routing rule (deliberately dumb)
 
