@@ -55,20 +55,22 @@ async function runDo(task) {
   const controller = new AbortController();
   process.once('SIGINT', () => controller.abort());
 
-  const id = insertDelegation(db, {
-    ts: Math.floor(Date.now() / 1000),
-    task,
-    taskType: classifyTaskType(task),
-    provider: providerName,
-    contextInjected,
-  });
+  let id;
   try {
+    id = insertDelegation(db, {
+      ts: Math.floor(Date.now() / 1000),
+      task,
+      taskType: classifyTaskType(task),
+      provider: providerName,
+      contextInjected,
+    });
     const result = await provider.delegate({ prompt, signal: controller.signal });
     updateResult(db, id, result);
     process.stdout.write(result);
   } catch (err) {
     // AbortSignal failure contract: row stays as-is (NULL result), visible for retry/delete.
-    console.error(`metis: delegation failed (row ${id} left with NULL result): ${err.message}`);
+    const rowNote = id != null ? ` (row ${id} left with NULL result)` : '';
+    console.error(`metis: delegation failed${rowNote}: ${err.message}`);
     process.exit(1);
   }
 }

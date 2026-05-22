@@ -15,16 +15,27 @@ export async function delegate({ prompt, signal }) {
     });
     let stdout = '';
     let stderr = '';
-    proc.stdout.on('data', (d) => {
-      stdout += d.toString();
+    let killTimer;
+
+    proc.stdout.on('data', (d) => { stdout += d.toString(); });
+    proc.stderr.on('data', (d) => { stderr += d.toString(); });
+
+    proc.on('error', (err) => {
+      clearTimeout(killTimer);
+      reject(err);
     });
-    proc.stderr.on('data', (d) => {
-      stderr += d.toString();
-    });
-    proc.on('error', reject);
     proc.on('close', (code) => {
+      clearTimeout(killTimer);
       if (code !== 0) reject(new Error(`copilot exited ${code}: ${stderr}`));
       else resolve(stdout);
     });
+
+    // spawn({ signal }) sends SIGTERM on abort; escalate to SIGKILL after 5s
+    // in case the process ignores SIGTERM.
+    if (signal) {
+      signal.addEventListener('abort', () => {
+        killTimer = setTimeout(() => proc.kill('SIGKILL'), 5000);
+      }, { once: true });
+    }
   });
 }

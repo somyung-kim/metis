@@ -272,7 +272,7 @@ Three phases. Each phase has a goal, dependencies, success criteria (verificatio
 6. The routing decision is observable: each row in `delegations` table shows which provider was actually used, allowing post-hoc routing analysis
 
 **Tasks:**
-- [ ] `scripts/lib/providers/copilot.mjs` — `child_process.spawn` adapter for `gh copilot` (verify exact non-interactive flag at implementation time)
+- [ ] `scripts/lib/providers/copilot.mjs` — `child_process.spawn` adapter for `copilot` (install: `npm install -g @github/copilot`; verified non-interactive invocation: `copilot -p <prompt> --silent --allow-all-tools`)
 - [ ] `agents/metis-copilot.md` — agent profile for Copilot delegation
 - [ ] `scripts/lib/router.mjs` — `pickProvider(currentTask, retrievedPastDelegations)` function from §"Routing rule"
 - [ ] `ProviderAdapter` interface enforcement — both adapters typed identically
@@ -427,9 +427,9 @@ export async function delegate({ prompt, signal }) {
 }
 ```
 
-Copilot adapter follows the identical shape with `gh copilot suggest` or equivalent (verify against Copilot CLI's actual non-interactive invocation flag at implementation time).
+Copilot adapter follows the identical shape using `copilot -p <prompt> --silent --allow-all-tools` (install: `npm install -g @github/copilot`). `gh copilot suggest` was deprecated October 2025 and is not the correct entrypoint.
 
-**Verify both CLI invocation flags at implementation time.** The example above uses `spawn('codex', ['exec', prompt], ...)` and the Copilot equivalent uses `gh copilot suggest` — but Codex CLI's `exec` flag and Copilot CLI's exact non-interactive flag both need confirmation against the installed versions before wiring up. Test each adapter standalone with a known input before integrating into `/metis:do`.
+**Copilot invocation is LOCKED (2026-05-22):** `copilot -p "<prompt>" --silent --allow-all-tools`. `-p` is the non-interactive flag; `--silent` strips UI metadata; `--allow-all-tools` enables automatic tool execution without interactive confirmation. Auth via ambient `gh auth login` or `GH_TOKEN` env var. Spawn with `stdio: ['ignore', 'pipe', 'pipe']` as a precaution against pipe-hang (same pattern as codex.mjs).
 
 **v1 Codex invocation is LOCKED (2026-05-18):** `codex exec "<prompt>" --sandbox workspace-write`. The `--sandbox workspace-write` flag is required — `codex exec` defaults to a read-only sandbox, which would block code-editing delegations (e.g., the "fix the typo" example). The `codex.mjs` adapter must add `'--sandbox', 'workspace-write'` to the args array; do not copy the read-only snippet above verbatim. stdout = final agent message (the result); stderr = progress stream. **The adapter must also spawn with `stdio: ['ignore', 'pipe', 'pipe']`** — when stdin is a non-TTY pipe, `codex exec` tries to read it as a `<stdin>` block and blocks forever on an unclosed pipe ("Reading additional input from stdin..."); the snippet above omits `stdio` and would hang under Node's default piped stdin (verified 2026-05-18).
 
