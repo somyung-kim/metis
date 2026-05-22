@@ -63,9 +63,9 @@ const FOLLOWUP_MAX_AGE_S = 86400; // 24h
 
 export function appendFollowup(db, message) {
   const row = db.prepare(
-    'SELECT id, ts, followup_messages FROM delegations WHERE result IS NOT NULL ORDER BY id DESC LIMIT 1'
+    'SELECT id, ts, result, followup_messages FROM delegations ORDER BY id DESC LIMIT 1'
   ).get();
-  if (!row) return;
+  if (!row || row.result === null) return;
   if (Math.floor(Date.now() / 1000) - row.ts > FOLLOWUP_MAX_AGE_S) return;
   let existing = [];
   try { existing = row.followup_messages ? JSON.parse(row.followup_messages) : []; } catch { existing = []; }
