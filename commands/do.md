@@ -11,17 +11,17 @@ The user's argument is `$ARGUMENTS`.
 
 Parse it as `<task> [--provider <name>]`. The task is everything before `--provider` (if present); the provider name is the token after `--provider`. Valid provider names: `codex`, `copilot`, `claude`.
 
-**Shell-safety contract:** Untrusted payloads (the user's task here, and later the subagent's result for the Claude branch) **MUST NOT be interpolated into a shell command**. Double-quoted shell arguments still expand `$(…)`, backticks, and `$VAR` — a task or result containing those constructs would execute on the user's machine. Always pass these payloads via the Write tool into a file, then reference the file path. Provider names are a bounded enum (`codex`/`copilot`/`claude`) and are safe to pass as quoted shell arguments.
+**Shell-safety contract:** Untrusted payloads (the user's task here, and later the subagent's result for the Claude branch) **MUST NOT be interpolated into a shell command**. Double-quoted shell arguments still expand `$(…)`, backticks, and `$VAR` — a task or result containing those constructs would execute on the user's machine. Always pass these payloads via the Write tool into a new file inside a generated tmp directory, then reference the file path. Provider names are a bounded enum (`codex`/`copilot`/`claude`) and are safe to pass as quoted shell arguments.
 
 ## Step 1 — Prepare the delegation
 
-**1a.** Use the Bash tool to generate a unique tmp file path:
+**1a.** Use the Bash tool to generate a unique tmp directory:
 
 ```
-mktemp "${TMPDIR:-/tmp}/metis-task.XXXXXX"
+mktemp -d "${TMPDIR:-/tmp}/metis-task.XXXXXX"
 ```
 
-Treat stdout as `<TASK_FILE>`.
+Treat stdout as `<TASK_DIR>`, and set `<TASK_FILE>` to `<TASK_DIR>/task.txt`. Do not create `<TASK_FILE>` with Bash.
 
 **1b.** Use the Write tool to write the task to that tmp file:
 - `file_path`: `<TASK_FILE>`
@@ -59,13 +59,13 @@ Parse that JSON. If the command exits non-zero or the JSON cannot be parsed, rep
 - `description`: a short label such as `"Metis claude delegation"`
 - `prompt`: the **exact `prompt` string** from the JSON above, byte-for-byte (do not edit, summarize, or wrap it)
 
-**2b.** When the Agent tool returns, use the Bash tool to generate a unique result tmp file path:
+**2b.** When the Agent tool returns, use the Bash tool to generate a unique result tmp directory:
 
 ```
-mktemp "${TMPDIR:-/tmp}/metis-result-<ROW_ID>.XXXXXX"
+mktemp -d "${TMPDIR:-/tmp}/metis-result-<ROW_ID>.XXXXXX"
 ```
 
-Substitute the rowId from the JSON before running `mktemp` (for example, `/tmp/metis-result-42.XXXXXX`). Treat stdout as `<RESULT_FILE>`.
+Substitute the rowId from the JSON before running `mktemp` (for example, `/tmp/metis-result-42.XXXXXX`). Treat stdout as `<RESULT_DIR>`, and set `<RESULT_FILE>` to `<RESULT_DIR>/result.txt`. Do not create `<RESULT_FILE>` with Bash.
 
 **2c.** Use the Write tool to drop the result into that tmp file:
 - `file_path`: `<RESULT_FILE>`
