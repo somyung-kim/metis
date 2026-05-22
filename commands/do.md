@@ -20,7 +20,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/metis.mjs" do "<TASK>"
 If the user supplied `--provider <name>`, append it as two separate arguments:
 
 ```
-node "${CLAUDE_PLUGIN_ROOT}/scripts/metis.mjs" do "<TASK>" --provider <name>
+node "${CLAUDE_PLUGIN_ROOT}/scripts/metis.mjs" do "<TASK>" --provider "<name>"
 ```
 
 Pass the task **verbatim as a single shell argument** — do not interpret, expand, summarize, or modify it, and quote it so that any shell metacharacters in the task are not evaluated. Never interpolate the provider name into a shell string without quoting.

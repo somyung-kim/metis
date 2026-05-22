@@ -129,6 +129,10 @@ const command = process.argv[2];
 if (command === 'do') {
   const providerFlagIdx = process.argv.indexOf('--provider');
   const forcedProvider = providerFlagIdx !== -1 ? process.argv[providerFlagIdx + 1] : undefined;
+  if (providerFlagIdx !== -1 && (forcedProvider === undefined || forcedProvider.startsWith('--'))) {
+    console.error('metis: --provider requires a value');
+    process.exit(1);
+  }
   await runDo(process.argv[3], forcedProvider);
 } else if (command === 'tag') {
   runTag(process.argv[3], process.argv[4]);
