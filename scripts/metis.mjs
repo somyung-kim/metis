@@ -13,6 +13,10 @@ import {
 import { buildPrompt } from './lib/retrieval.mjs';
 import { formatStatus } from './lib/status.mjs';
 import * as codex from './lib/providers/codex.mjs';
+import * as copilot from './lib/providers/copilot.mjs';
+import { pickProvider } from './lib/router.mjs';
+
+const PROVIDERS = { codex, copilot };
 
 function classifyTaskType(task) {
   const t = task.toLowerCase();
@@ -42,20 +46,31 @@ async function runDo(task) {
   // Retrieve BEFORE inserting the current row so the task cannot match itself.
   const past = findSimilar(db, task, 3);
   const { prompt, contextInjected } = buildPrompt(past, task);
-  const id = insertDelegation(db, {
-    ts: Math.floor(Date.now() / 1000),
-    task,
-    taskType: classifyTaskType(task),
-    provider: codex.name,
-    contextInjected,
-  });
+
+  const providerName = pickProvider(past);
+  const provider = PROVIDERS[providerName];
+
+  // Claude Code plugin runtime does not expose an AbortSignal, so we wire SIGINT
+  // into an AbortController so Ctrl-C kills the provider subprocess cleanly.
+  const controller = new AbortController();
+  process.once('SIGINT', () => controller.abort());
+
+  let id;
   try {
-    const result = await codex.delegate({ prompt, signal: undefined });
+    id = insertDelegation(db, {
+      ts: Math.floor(Date.now() / 1000),
+      task,
+      taskType: classifyTaskType(task),
+      provider: providerName,
+      contextInjected,
+    });
+    const result = await provider.delegate({ prompt, signal: controller.signal });
     updateResult(db, id, result);
     process.stdout.write(result);
   } catch (err) {
     // AbortSignal failure contract: row stays as-is (NULL result), visible for retry/delete.
-    console.error(`metis: delegation failed (row ${id} left with NULL result): ${err.message}`);
+    const rowNote = id != null ? ` (row ${id} left with NULL result)` : '';
+    console.error(`metis: delegation failed${rowNote}: ${err.message}`);
     process.exit(1);
   }
 }

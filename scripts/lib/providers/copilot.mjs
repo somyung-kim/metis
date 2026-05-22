@@ -1,12 +1,12 @@
 import { spawn } from 'node:child_process';
 
-export const name = 'codex';
+export const name = 'copilot';
 
-// --sandbox workspace-write is required: `codex exec` defaults to a read-only
-// sandbox, which would block code-editing delegations.
-// stdin='ignore': when stdin is a non-TTY pipe, `codex exec` tries to read it as
-// a <stdin> block and blocks forever on an unclosed pipe ("Reading additional
-// input from stdin..."). /dev/null gives an immediate EOF so it proceeds.
+// Requires: npm install -g @github/copilot  (installs the 'copilot' binary)
+// Auth: ambient 'gh auth login' or GH_TOKEN env var.
+// -p is the non-interactive flag; --silent strips UI metadata from stdout;
+// --allow-all-tools enables automatic tool execution without interactive prompts.
+// stdin='ignore': precaution against potential pipe-hang (same pattern as codex.mjs).
 export async function delegate({ prompt, signal }) {
   if (signal?.aborted) return Promise.reject(new DOMException('delegation aborted', 'AbortError'));
 
@@ -14,7 +14,7 @@ export async function delegate({ prompt, signal }) {
     // signal is handled manually (not passed to spawn) so the promise only settles
     // after the subprocess closes — preventing process.exit(1) from firing before
     // SIGKILL can escalate a subprocess that ignores SIGTERM.
-    const proc = spawn('codex', ['exec', prompt, '--sandbox', 'workspace-write'], {
+    const proc = spawn('copilot', ['-p', prompt, '--silent', '--allow-all-tools'], {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
@@ -32,7 +32,7 @@ export async function delegate({ prompt, signal }) {
     proc.on('close', (code) => {
       clearTimeout(killTimer);
       if (aborted) reject(new DOMException('delegation aborted', 'AbortError'));
-      else if (code !== 0) reject(new Error(`codex exited ${code}: ${stderr}`));
+      else if (code !== 0) reject(new Error(`copilot exited ${code}: ${stderr}`));
       else resolve(stdout);
     });
 
