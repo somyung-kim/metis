@@ -36,9 +36,13 @@ function ensureMetisDir() {
   return metisDir;
 }
 
-async function runDo(task) {
+async function runDo(task, forcedProvider) {
   if (!task) {
-    console.error('usage: metis do "<task>"');
+    console.error('usage: metis do "<task>" [--provider <name>]');
+    process.exit(1);
+  }
+  if (forcedProvider !== undefined && !PROVIDERS[forcedProvider]) {
+    console.error(`metis: unknown provider '${forcedProvider}' (available: ${Object.keys(PROVIDERS).join(', ')})`);
     process.exit(1);
   }
   const metisDir = ensureMetisDir();
@@ -47,7 +51,7 @@ async function runDo(task) {
   const past = findSimilar(db, task, 3);
   const { prompt, contextInjected } = buildPrompt(past, task);
 
-  const providerName = pickProvider(past);
+  const providerName = forcedProvider ?? pickProvider(past);
   const provider = PROVIDERS[providerName];
 
   // Claude Code plugin runtime does not expose an AbortSignal, so we wire SIGINT
@@ -123,7 +127,13 @@ function runStatus() {
 
 const command = process.argv[2];
 if (command === 'do') {
-  await runDo(process.argv[3]);
+  const providerFlagIdx = process.argv.indexOf('--provider');
+  const forcedProvider = providerFlagIdx !== -1 ? process.argv[providerFlagIdx + 1] : undefined;
+  if (providerFlagIdx !== -1 && (forcedProvider === undefined || forcedProvider.startsWith('--'))) {
+    console.error('metis: --provider requires a value');
+    process.exit(1);
+  }
+  await runDo(process.argv[3], forcedProvider);
 } else if (command === 'tag') {
   runTag(process.argv[3], process.argv[4]);
 } else if (command === 'status') {
