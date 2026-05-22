@@ -5,5 +5,18 @@
   "author": {
     "name": "Somyung"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PLUGIN_ROOT/scripts/hooks/followup.mjs\""
+          }
+        ]
+      }
+    ]
+  }
 }
