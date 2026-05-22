@@ -52,6 +52,11 @@ export function tagLatest(db, tag) {
   return row.id;
 }
 
+export function tagById(db, id, tag) {
+  const info = db.prepare('UPDATE delegations SET tag = ? WHERE id = ?').run(tag, id);
+  return info.changes > 0 ? id : null;
+}
+
 // Sanitize task text for an FTS5 MATCH: quote each alnum token as a literal
 // and OR-join (recall-oriented). Quoting neutralizes FTS operators/special
 // chars, so the produced query can never be a syntax error. No tokens -> null.
