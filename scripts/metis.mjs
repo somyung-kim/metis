@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import {
   openDb,
@@ -36,6 +36,22 @@ function ensureMetisDir() {
     writeFileSync(path.join(metisDir, '.gitignore'), '*\n!.gitignore\n');
   }
   return metisDir;
+}
+
+// Read a payload (task or result) from a file written by do.md's Write-tool
+// pre-step. The file path never contains user/subagent content — only the
+// payload does — so reading it via fs (not via the shell) eliminates the
+// shell-interpolation injection surface. Unlinks best-effort after read.
+function readPayloadFile(p) {
+  let content;
+  try {
+    content = readFileSync(p, 'utf8');
+  } catch (err) {
+    console.error(`metis: cannot read ${p}: ${err.message}`);
+    process.exit(1);
+  }
+  try { unlinkSync(p); } catch { /* best-effort cleanup */ }
+  return content;
 }
 
 // prepare: classify + retrieve + INSERT row (NULL result), emit JSON for do.md
@@ -192,17 +208,72 @@ function runStatus() {
 
 const command = process.argv[2];
 if (command === 'prepare') {
-  const providerFlagIdx = process.argv.indexOf('--provider');
-  const forcedProvider = providerFlagIdx !== -1 ? process.argv[providerFlagIdx + 1] : undefined;
-  if (providerFlagIdx !== -1 && (forcedProvider === undefined || forcedProvider.startsWith('--'))) {
-    console.error('metis: --provider requires a value');
+  // Accepts: [<task>] [--provider <name>] [--from-file <path>]
+  // <task> and --from-file are mutually exclusive. --from-file is the safe
+  // path used by do.md to avoid shell interpolation of untrusted payloads.
+  const argv = process.argv.slice(3);
+  let positionalTask;
+  let forcedProvider;
+  let fromFile;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--provider' || a === '--from-file') {
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith('--')) {
+        console.error(`metis: ${a} requires a value`);
+        process.exit(1);
+      }
+      if (a === '--provider') forcedProvider = value;
+      else fromFile = value;
+      i++;
+    } else if (positionalTask === undefined) {
+      positionalTask = a;
+    } else {
+      console.error(`metis: unexpected argument '${a}'`);
+      process.exit(1);
+    }
+  }
+  if (fromFile !== undefined && positionalTask !== undefined) {
+    console.error('metis: cannot use both positional task and --from-file');
     process.exit(1);
   }
-  await runPrepare(process.argv[3], forcedProvider);
+  const task = fromFile !== undefined ? readPayloadFile(fromFile) : positionalTask;
+  await runPrepare(task, forcedProvider);
 } else if (command === 'delegate') {
   await runDelegate(process.argv[3]);
 } else if (command === 'record') {
-  runRecord(process.argv[3], process.argv[4]);
+  // Accepts: <rowId> [<result>] [--from-file <path>]
+  // <result> and --from-file are mutually exclusive. --from-file is the safe
+  // path used by do.md after the Agent tool returns.
+  const argv = process.argv.slice(3);
+  let rowIdArg;
+  let positionalResult;
+  let fromFile;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--from-file') {
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith('--')) {
+        console.error('metis: --from-file requires a value');
+        process.exit(1);
+      }
+      fromFile = value;
+      i++;
+    } else if (rowIdArg === undefined) {
+      rowIdArg = a;
+    } else if (positionalResult === undefined) {
+      positionalResult = a;
+    } else {
+      console.error(`metis: unexpected argument '${a}'`);
+      process.exit(1);
+    }
+  }
+  if (fromFile !== undefined && positionalResult !== undefined) {
+    console.error('metis: cannot use both positional result and --from-file');
+    process.exit(1);
+  }
+  const result = fromFile !== undefined ? readPayloadFile(fromFile) : positionalResult;
+  runRecord(rowIdArg, result);
 } else if (command === 'tag') {
   runTag(process.argv[3], process.argv[4]);
 } else if (command === 'status') {

@@ -26,7 +26,10 @@ function formatRow(row) {
   let followups = 0;
   try { followups = row.followup_messages ? JSON.parse(row.followup_messages).length : 0; } catch { followups = 0; }
   const followupSuffix = followups > 0 ? ` [+${followups}]` : '';
-  return `  [${marker(row.tag)}] ${fmtTime(row.ts)}  ${typeProv}  ${firstLine(row.task)}${followupSuffix}`;
+  // PRD §"What the AbortSignal concern actually is": "The user can see the
+  // aborted row in /metis:status as 'no result' and decide to retry or delete."
+  const noResultSuffix = row.result == null ? ' · no result' : '';
+  return `  [${marker(row.tag)}] ${fmtTime(row.ts)}  ${typeProv}  ${firstLine(row.task)}${noResultSuffix}${followupSuffix}`;
 }
 
 function formatSummary(s) {

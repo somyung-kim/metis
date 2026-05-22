@@ -500,14 +500,20 @@ Phase 4 adds Claude as a third provider, but **Claude does NOT conform to the `P
 The `PROVIDERS` registry in `scripts/metis.mjs` therefore contains subprocess adapters only — `'claude'` is a recognized provider name (for routing) but has no entry in `PROVIDERS`. Delegation for Claude happens in `commands/do.md`:
 
 ```
-1. Run `node metis.mjs prepare "<task>" [--provider <name>]`
-   → outputs JSON { rowId, provider, prompt }; row is INSERTed with NULL result
-2. Branch on provider:
+1. Write the task to /tmp/metis-task.txt via the Write tool (verbatim, no escaping)
+2. Run `node metis.mjs prepare --from-file /tmp/metis-task.txt [--provider <name>]`
+   → outputs JSON { rowId, provider, prompt }; row is INSERTed with NULL result;
+     the script unlinks the tmp file after reading
+3. Branch on provider:
    - 'claude': spawn subagent via Agent tool (subagent_type: metis:metis-claude) with the prompt
-               → on completion, run `metis.mjs record <rowId> "<result>"`
+               → write the result to /tmp/metis-result-<rowId>.txt via Write
+               → run `metis.mjs record <rowId> --from-file /tmp/metis-result-<rowId>.txt`
+               → if record fails: report the error and still relay the result to the user
    - else:     run `metis.mjs delegate <rowId>` (subprocess via existing adapter)
-3. Relay result to user
+4. Relay result to user
 ```
+
+**Shell-safety contract:** untrusted payloads (the user's task and the Claude subagent's result) MUST NOT be interpolated into shell command lines — double-quoted shell args still expand `$()`, backticks, and `$VAR`. The Write tool takes file contents as a JSON parameter (not shell), so do.md uses it to drop payloads into a file, then references the file path (which only contains the rowId — a controlled integer). Provider names stay positional in the shell command because they are a bounded enum (`codex`/`copilot`/`claude`). The `--from-file` flag on `prepare` and `record` is the safe entry point; positional payload args are still supported for direct-CLI use but should not be used by do.md.
 
 **`do.md` constraint changes:**
 - `disable-model-invocation: true` is **preserved** — the flag prevents Claude from auto-invoking `/metis:do` based on ambient context (the original safety guarantee). It does NOT block in-command model reasoning or tool use when the user has explicitly invoked the command; `allowed-tools` controls that.
