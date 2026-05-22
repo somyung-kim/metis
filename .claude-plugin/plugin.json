@@ -9,8 +9,13 @@
   "hooks": {
     "UserPromptSubmit": [
       {
-        "type": "command",
-        "command": "node \"$CLAUDE_PLUGIN_ROOT/scripts/hooks/followup.mjs\""
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PLUGIN_ROOT/scripts/hooks/followup.mjs\""
+          }
+        ]
       }
     ]
   }

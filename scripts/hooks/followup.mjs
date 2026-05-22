@@ -14,6 +14,8 @@ try {
 
 const { prompt, cwd } = input;
 
+if (typeof cwd !== 'string') process.exit(0);
+
 // Skip metis commands — not followup signals, and must not consume a slot.
 if (typeof prompt === 'string' && prompt.trimStart().startsWith('/metis:')) process.exit(0);
 
