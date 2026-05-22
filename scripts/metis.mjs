@@ -79,7 +79,7 @@ function runTag(tag, targetId) {
     }
     id = tagById(db, parseInt(targetId, 10), tag);
     if (id === null) {
-      console.error(`metis: no delegation with id ${numericId}`);
+      console.error(`metis: no delegation with id ${targetId}`);
       process.exit(1);
     }
   } else {
