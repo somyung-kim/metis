@@ -19,6 +19,7 @@ import { pickProvider, KNOWN_PROVIDERS } from './lib/router.mjs';
 // Subprocess adapters only. 'claude' is a routable provider but is delegated to
 // at the do.md instruction layer via the Agent tool, not from this script.
 const PROVIDERS = { codex, copilot };
+const SUBPROCESS_PROVIDERS = new Set(Object.keys(PROVIDERS));
 
 function classifyTaskType(task) {
   const t = task.toLowerCase();
@@ -90,7 +91,7 @@ async function runPrepare(task, forcedProvider) {
 
 // Compatibility path for direct CLI callers. /metis:do uses the split
 // prepare/delegate/record flow so it can invoke Claude via the Agent tool;
-// direct CLI can only run subprocess providers.
+// direct CLI constrains auto-routing to subprocess providers.
 async function runDo(task, forcedProvider) {
   if (!task) {
     console.error('usage: metis do "<task>" [--provider <name>]');
@@ -105,7 +106,8 @@ async function runDo(task, forcedProvider) {
   // Retrieve BEFORE inserting the current row so the task cannot match itself.
   const past = findSimilar(db, task, 3);
   const { prompt, contextInjected } = buildPrompt(past, task);
-  const providerName = forcedProvider ?? pickProvider(past);
+  const routedProvider = pickProvider(past);
+  const providerName = forcedProvider ?? (SUBPROCESS_PROVIDERS.has(routedProvider) ? routedProvider : 'codex');
   const provider = PROVIDERS[providerName];
   if (!provider) {
     console.error(`metis: provider '${providerName}' requires /metis:do because it uses the Claude Agent tool`);
