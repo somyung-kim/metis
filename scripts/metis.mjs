@@ -5,6 +5,7 @@ import {
   insertDelegation,
   updateResult,
   tagLatest,
+  tagById,
   findSimilar,
   lastDelegations,
   weeklySummary,
@@ -59,9 +60,9 @@ async function runDo(task) {
   }
 }
 
-function runTag(tag) {
+function runTag(tag, targetId) {
   if (tag !== 'good' && tag !== 'bad') {
-    console.error('usage: metis tag <good|bad>');
+    console.error('usage: metis tag <good|bad> [id]');
     process.exit(1);
   }
   const metisDir = path.join(process.cwd(), '.metis');
@@ -70,10 +71,24 @@ function runTag(tag) {
     process.exit(1);
   }
   const db = openDb(path.join(metisDir, 'metis.db'));
-  const id = tagLatest(db, tag);
-  if (id === null) {
-    console.error('metis: no delegations to tag');
-    process.exit(1);
+  let id;
+  if (targetId !== undefined) {
+    const numericId = Number(targetId);
+    if (!Number.isInteger(numericId) || numericId <= 0) {
+      console.error('usage: metis tag <good|bad> [id]');
+      process.exit(1);
+    }
+    id = tagById(db, numericId, tag);
+    if (id === null) {
+      console.error(`metis: no delegation with id ${numericId}`);
+      process.exit(1);
+    }
+  } else {
+    id = tagLatest(db, tag);
+    if (id === null) {
+      console.error('metis: no delegations to tag');
+      process.exit(1);
+    }
   }
   console.log(`metis: tagged delegation ${id} as ${tag}`);
 }
@@ -96,7 +111,7 @@ const command = process.argv[2];
 if (command === 'do') {
   await runDo(process.argv[3]);
 } else if (command === 'tag') {
-  runTag(process.argv[3]);
+  runTag(process.argv[3], process.argv[4]);
 } else if (command === 'status') {
   runStatus();
 } else {

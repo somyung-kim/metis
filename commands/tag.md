@@ -1,22 +1,22 @@
 ---
-description: Tag the most recent Metis delegation as good or bad. Invoke only when the user explicitly asks.
-argument-hint: "good|bad"
+description: Tag a Metis delegation as good or bad. Omit the ID to tag the most recent; supply an ID (visible in /metis:status) to tag a specific one. Invoke only when the user explicitly asks.
+argument-hint: "good|bad [id]"
 disable-model-invocation: true
 allowed-tools: Bash(node *)
 ---
 
-Tag the most recent Metis delegation.
+Tag a Metis delegation.
 
-The user's argument should be exactly `good` or `bad`:
+The user's argument is `$ARGUMENTS`.
 
-$ARGUMENTS
+Parse it as `<value> [id]` where `<value>` is `good` or `bad` and `id` is an optional integer.
 
-If it is `good` or `bad`, use the Bash tool to run:
+If `<value>` is not `good` or `bad`, do not run the command — tell the user the only valid values are `good` or `bad`.
+
+Otherwise use the Bash tool to run:
 
 ```
-node "${CLAUDE_PLUGIN_ROOT}/scripts/metis.mjs" tag <VALUE>
+node "${CLAUDE_PLUGIN_ROOT}/scripts/metis.mjs" tag <VALUE> [ID]
 ```
 
-where `<VALUE>` is the single word the user provided. Report the confirmation line from the command's stdout.
-
-If the argument is anything other than `good` or `bad`, do not run the command — tell the user the only valid options are `good` or `bad`.
+Include `[ID]` only if the user supplied one. Report the confirmation line from the command's stdout.
