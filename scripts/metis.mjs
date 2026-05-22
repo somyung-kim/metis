@@ -44,13 +44,17 @@ function ensureMetisDir() {
 // shell-interpolation injection surface. Unlinks best-effort after read.
 function readPayloadFile(p) {
   let content;
+  let readError;
   try {
     content = readFileSync(p, 'utf8');
   } catch (err) {
-    console.error(`metis: cannot read ${p}: ${err.message}`);
-    process.exit(1);
+    readError = err;
   }
   try { unlinkSync(p); } catch { /* best-effort cleanup */ }
+  if (readError) {
+    console.error(`metis: cannot read ${p}: ${readError.message}`);
+    process.exit(1);
+  }
   return content;
 }
 
