@@ -2,7 +2,7 @@
 description: Delegate a coding task via Metis and record the delegation to .metis/metis.db. Invoke only when the user explicitly asks.
 argument-hint: "<task description> [--provider codex|copilot|claude]"
 disable-model-invocation: true
-allowed-tools: Bash(node *), Agent, Write
+allowed-tools: Bash(node *), Bash(mktemp *), Agent, Write
 ---
 
 Delegate the user's coding task through the Metis CLI.
@@ -15,20 +15,28 @@ Parse it as `<task> [--provider <name>]`. The task is everything before `--provi
 
 ## Step 1 — Prepare the delegation
 
-**1a.** Use the Write tool to write the task to a tmp file:
-- `file_path`: `/tmp/metis-task.txt`
-- `content`: the **exact `<TASK>` string** parsed from `$ARGUMENTS`, byte-for-byte (do not escape, expand, summarize, or modify)
-
-**1b.** Use the Bash tool to run prepare:
+**1a.** Use the Bash tool to generate a unique tmp file path:
 
 ```
-node "${CLAUDE_PLUGIN_ROOT}/scripts/metis.mjs" prepare --from-file /tmp/metis-task.txt
+mktemp "${TMPDIR:-/tmp}/metis-task.XXXXXX"
+```
+
+Treat stdout as `<TASK_FILE>`.
+
+**1b.** Use the Write tool to write the task to that tmp file:
+- `file_path`: `<TASK_FILE>`
+- `content`: the **exact `<TASK>` string** parsed from `$ARGUMENTS`, byte-for-byte (do not escape, expand, summarize, or modify)
+
+**1c.** Use the Bash tool to run prepare with the generated path:
+
+```
+node "${CLAUDE_PLUGIN_ROOT}/scripts/metis.mjs" prepare --from-file "<TASK_FILE>"
 ```
 
 If the user supplied `--provider <name>`, append it as two separate arguments:
 
 ```
-node "${CLAUDE_PLUGIN_ROOT}/scripts/metis.mjs" prepare --from-file /tmp/metis-task.txt --provider "<name>"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/metis.mjs" prepare --from-file "<TASK_FILE>" --provider "<name>"
 ```
 
 (`prepare` reads the file and unlinks it after reading.)
@@ -51,19 +59,27 @@ Parse that JSON. If the command exits non-zero or the JSON cannot be parsed, rep
 - `description`: a short label such as `"Metis claude delegation"`
 - `prompt`: the **exact `prompt` string** from the JSON above, byte-for-byte (do not edit, summarize, or wrap it)
 
-**2b.** When the Agent tool returns, use the Write tool to drop the result into a tmp file:
-- `file_path`: `/tmp/metis-result-<ROW_ID>.txt` (substitute the rowId from the JSON, e.g. `/tmp/metis-result-42.txt`)
+**2b.** When the Agent tool returns, use the Bash tool to generate a unique result tmp file path:
+
+```
+mktemp "${TMPDIR:-/tmp}/metis-result-<ROW_ID>.XXXXXX"
+```
+
+Substitute the rowId from the JSON before running `mktemp` (for example, `/tmp/metis-result-42.XXXXXX`). Treat stdout as `<RESULT_FILE>`.
+
+**2c.** Use the Write tool to drop the result into that tmp file:
+- `file_path`: `<RESULT_FILE>`
 - `content`: the **exact result string** the Agent tool returned, byte-for-byte (do not summarize, trim, or modify)
 
-**2c.** Use the Bash tool to run record:
+**2d.** Use the Bash tool to run record with the generated path:
 
 ```
-node "${CLAUDE_PLUGIN_ROOT}/scripts/metis.mjs" record <ROW_ID> --from-file /tmp/metis-result-<ROW_ID>.txt
+node "${CLAUDE_PLUGIN_ROOT}/scripts/metis.mjs" record <ROW_ID> --from-file "<RESULT_FILE>"
 ```
 
-**2d.** Check the exit status. If `record` succeeded, relay the result to the user as the delegation output. If `record` exited non-zero, report the error and tell the user the delegation completed successfully but the result was NOT recorded (row left with NULL `result`, visible in `/metis:status` as "no result"). Still relay the result content to the user so they have it.
+**2e.** Check the exit status. If `record` succeeded, relay the result to the user as the delegation output. If `record` exited non-zero, report the error and tell the user the delegation completed successfully but the result was NOT recorded (row left with NULL `result`, visible in `/metis:status` as "no result"). Still relay the result content to the user so they have it.
 
-If the Agent tool fails or is interrupted before step 2b, do not write the result file or call `record`. The row remains with NULL `result` (visible in `/metis:status` as "no result"), and the user can retry or delete it.
+If the Agent tool fails or is interrupted before step 2b, do not generate or write the result file or call `record`. The row remains with NULL `result` (visible in `/metis:status` as "no result"), and the user can retry or delete it.
 
 ### Else (`provider === "codex"` or `provider === "copilot"`)
 

@@ -88,6 +88,55 @@ async function runPrepare(task, forcedProvider) {
   process.stdout.write(JSON.stringify({ rowId: Number(id), provider: providerName, prompt }) + '\n');
 }
 
+// Compatibility path for direct CLI callers. /metis:do uses the split
+// prepare/delegate/record flow so it can invoke Claude via the Agent tool;
+// direct CLI can only run subprocess providers.
+async function runDo(task, forcedProvider) {
+  if (!task) {
+    console.error('usage: metis do "<task>" [--provider <name>]');
+    process.exit(1);
+  }
+  if (forcedProvider !== undefined && !KNOWN_PROVIDERS.has(forcedProvider)) {
+    console.error(`metis: unknown provider '${forcedProvider}' (available: ${[...KNOWN_PROVIDERS].join(', ')})`);
+    process.exit(1);
+  }
+  const metisDir = ensureMetisDir();
+  const db = openDb(path.join(metisDir, 'metis.db'));
+  // Retrieve BEFORE inserting the current row so the task cannot match itself.
+  const past = findSimilar(db, task, 3);
+  const { prompt, contextInjected } = buildPrompt(past, task);
+  const providerName = forcedProvider ?? pickProvider(past);
+  const provider = PROVIDERS[providerName];
+  if (!provider) {
+    console.error(`metis: provider '${providerName}' requires /metis:do because it uses the Claude Agent tool`);
+    process.exit(1);
+  }
+
+  // Claude Code plugin runtime does not expose an AbortSignal, so wire SIGINT
+  // into an AbortController so Ctrl-C kills the provider subprocess cleanly.
+  const controller = new AbortController();
+  process.once('SIGINT', () => controller.abort());
+
+  let id;
+  try {
+    id = insertDelegation(db, {
+      ts: Math.floor(Date.now() / 1000),
+      task,
+      taskType: classifyTaskType(task),
+      provider: providerName,
+      contextInjected,
+    });
+    const result = await provider.delegate({ prompt, signal: controller.signal });
+    updateResult(db, id, result);
+    process.stdout.write(result);
+  } catch (err) {
+    // AbortSignal failure contract: row stays as-is (NULL result), visible for retry/delete.
+    const rowNote = id != null ? ` (row ${id} left with NULL result)` : '';
+    console.error(`metis: delegation failed${rowNote}: ${err.message}`);
+    process.exit(1);
+  }
+}
+
 // delegate: subprocess path for codex/copilot. Reads the row's provider+prompt,
 // spawns the adapter, writes the result. 'claude' is rejected — it belongs to
 // the Agent-tool path in do.md.
@@ -211,7 +260,30 @@ function runStatus() {
 }
 
 const command = process.argv[2];
-if (command === 'prepare') {
+if (command === 'do') {
+  // Accepts: <task> [--provider <name>]
+  const argv = process.argv.slice(3);
+  let task;
+  let forcedProvider;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--provider') {
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith('--')) {
+        console.error('metis: --provider requires a value');
+        process.exit(1);
+      }
+      forcedProvider = value;
+      i++;
+    } else if (task === undefined) {
+      task = a;
+    } else {
+      console.error(`metis: unexpected argument '${a}'`);
+      process.exit(1);
+    }
+  }
+  await runDo(task, forcedProvider);
+} else if (command === 'prepare') {
   // Accepts: [<task>] [--provider <name>] [--from-file <path>]
   // <task> and --from-file are mutually exclusive. --from-file is the safe
   // path used by do.md to avoid shell interpolation of untrusted payloads.
@@ -283,6 +355,6 @@ if (command === 'prepare') {
 } else if (command === 'status') {
   runStatus();
 } else {
-  console.error('usage: metis <prepare|delegate|record|tag|status> ...');
+  console.error('usage: metis <do|prepare|delegate|record|tag|status> ...');
   process.exit(1);
 }

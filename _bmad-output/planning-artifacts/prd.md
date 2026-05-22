@@ -500,24 +500,24 @@ Phase 4 adds Claude as a third provider, but **Claude does NOT conform to the `P
 The `PROVIDERS` registry in `scripts/metis.mjs` therefore contains subprocess adapters only — `'claude'` is a recognized provider name (for routing) but has no entry in `PROVIDERS`. Delegation for Claude happens in `commands/do.md`:
 
 ```
-1. Write the task to /tmp/metis-task.txt via the Write tool (verbatim, no escaping)
-2. Run `node metis.mjs prepare --from-file /tmp/metis-task.txt [--provider <name>]`
+1. Generate a unique task tmp path with `mktemp`, then write the task there via the Write tool (verbatim, no escaping)
+2. Run `node metis.mjs prepare --from-file <task-file> [--provider <name>]`
    → outputs JSON { rowId, provider, prompt }; row is INSERTed with NULL result;
      the script unlinks the tmp file after reading
 3. Branch on provider:
    - 'claude': spawn subagent via Agent tool (subagent_type: metis:metis-claude) with the prompt
-               → write the result to /tmp/metis-result-<rowId>.txt via Write
-               → run `metis.mjs record <rowId> --from-file /tmp/metis-result-<rowId>.txt`
+               → generate a unique result tmp path with `mktemp`, then write the result there via Write
+               → run `metis.mjs record <rowId> --from-file <result-file>`
                → if record fails: report the error and still relay the result to the user
    - else:     run `metis.mjs delegate <rowId>` (subprocess via existing adapter)
 4. Relay result to user
 ```
 
-**Shell-safety contract:** untrusted payloads (the user's task and the Claude subagent's result) MUST NOT be interpolated into shell command lines — double-quoted shell args still expand `$()`, backticks, and `$VAR`. The Write tool takes file contents as a JSON parameter (not shell), so do.md uses it to drop payloads into a file (/tmp/metis-task.txt for the task — fixed name; /tmp/metis-result-<rowId>.txt for the result — rowId is a controlled integer), then references that path on the shell command line. No untrusted payload content touches the shell. Provider names stay positional in the shell command because they are a bounded enum (`codex`/`copilot`/`claude`). The `--from-file` flag on `prepare` and `record` is the safe entry point; positional payload args are still supported for direct-CLI use but should not be used by do.md.
+**Shell-safety contract:** untrusted payloads (the user's task and the Claude subagent's result) MUST NOT be interpolated into shell command lines — double-quoted shell args still expand `$()`, backticks, and `$VAR`. The Write tool takes file contents as a JSON parameter (not shell), so do.md uses `mktemp` to generate per-invocation tmp file paths, uses Write to put payloads into those files, then references only the generated paths on shell command lines. No untrusted payload content touches the shell. Provider names stay positional in the shell command because they are a bounded enum (`codex`/`copilot`/`claude`). The `--from-file` flag on `prepare` and `record` is the safe entry point; positional payload args are still supported for direct-CLI use but should not be used by do.md.
 
 **`do.md` constraint changes:**
 - `disable-model-invocation: true` is **preserved** — the flag prevents Claude from auto-invoking `/metis:do` based on ambient context (the original safety guarantee). It does NOT block in-command model reasoning or tool use when the user has explicitly invoked the command; `allowed-tools` controls that.
-- `allowed-tools` expands from `Bash(node *)` to `Bash(node *), Agent` (the Agent tool spawns the subagent)
+- `allowed-tools` expands from `Bash(node *)` to `Bash(node *), Bash(mktemp *), Agent, Write` (`mktemp` creates unique handoff paths, Write stores payloads, and Agent spawns the subagent)
 
 **AbortSignal contract preserved:** if the Agent tool fails or is interrupted before `record` runs, the row stays with NULL `result` — same failure semantics as a subprocess abort.
 
