@@ -57,6 +57,20 @@ export function tagById(db, id, tag) {
   return info.changes > 0 ? id : null;
 }
 
+const FOLLOWUP_MAX = 3;
+const FOLLOWUP_MAX_CHARS = 200;
+const FOLLOWUP_MAX_AGE_S = 86400; // 24h
+
+export function appendFollowup(db, message) {
+  const row = db.prepare('SELECT id, ts, followup_messages FROM delegations ORDER BY id DESC LIMIT 1').get();
+  if (!row) return;
+  if (Math.floor(Date.now() / 1000) - row.ts > FOLLOWUP_MAX_AGE_S) return;
+  const existing = row.followup_messages ? JSON.parse(row.followup_messages) : [];
+  if (existing.length >= FOLLOWUP_MAX) return;
+  existing.push(message.slice(0, FOLLOWUP_MAX_CHARS));
+  db.prepare('UPDATE delegations SET followup_messages = ? WHERE id = ?').run(JSON.stringify(existing), row.id);
+}
+
 // Sanitize task text for an FTS5 MATCH: quote each alnum token as a literal
 // and OR-join (recall-oriented). Quoting neutralizes FTS operators/special
 // chars, so the produced query can never be a syntax error. No tokens -> null.

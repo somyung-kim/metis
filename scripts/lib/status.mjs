@@ -23,7 +23,9 @@ function firstLine(task) {
 
 function formatRow(row) {
   const typeProv = `${row.task_type ?? ''} (${row.provider})`.padEnd(20);
-  return `  [${marker(row.tag)}] ${fmtTime(row.ts)}  ${typeProv}  ${firstLine(row.task)}`;
+  const followups = row.followup_messages ? JSON.parse(row.followup_messages).length : 0;
+  const followupSuffix = followups > 0 ? ` [+${followups}]` : '';
+  return `  [${marker(row.tag)}] ${fmtTime(row.ts)}  ${typeProv}  ${firstLine(row.task)}${followupSuffix}`;
 }
 
 function formatSummary(s) {
