@@ -73,12 +73,11 @@ function runTag(tag, targetId) {
   const db = openDb(path.join(metisDir, 'metis.db'));
   let id;
   if (targetId !== undefined) {
-    const numericId = Number(targetId);
-    if (!Number.isInteger(numericId) || numericId <= 0) {
+    if (!/^[1-9]\d*$/.test(targetId)) {
       console.error('usage: metis tag <good|bad> [id]');
       process.exit(1);
     }
-    id = tagById(db, numericId, tag);
+    id = tagById(db, parseInt(targetId, 10), tag);
     if (id === null) {
       console.error(`metis: no delegation with id ${numericId}`);
       process.exit(1);
