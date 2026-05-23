@@ -123,9 +123,6 @@ Markers: `✓` good · `✗` bad · `~` untagged.
   partial. `/metis:tag` targets a row by `id DESC` (or an explicit ID), never `ts`
   (second-granularity timestamps collide on rapid calls).
 
-The binding spec is [`_bmad-output/planning-artifacts/prd.md`](_bmad-output/planning-artifacts/prd.md).
-Implementation notes in that file are normative.
-
 ---
 
 ## Status & roadmap
@@ -139,7 +136,7 @@ Implementation notes in that file are normative.
 
 Thompson Sampling, four-network memory, a Critic subagent, semantic embeddings,
 git-attribution outcome signals, and cross-repo aggregation are all **out of v1
-by design**. See the PRD's "Explicitly Out of Scope for v1" table.
+by design**.
 
 ---
 
@@ -147,8 +144,7 @@ by design**. See the PRD's "Explicitly Out of Scope for v1" table.
 
 The database lives at `<repo>/.metis/metis.db`, one per repo. It is never
 aggregated across repos, never sent over the network, and is gitignored at the
-directory level. Schema: a single `delegations` table — see the PRD's
-"What Gets Stored" section.
+directory level. Schema: a single `delegations` table (id, ts, task, task_type, provider, context_injected, result, tag, followup_messages).
 
 Inspect, or dump to CSV for review:
 
