@@ -20,7 +20,9 @@ provider + routing.
   **"Implementation Notes"** section carries the exact contracts (schema, prompt
   template, token budget, routing function, migration runner, pragmas). Treat
   Implementation Notes as binding; do not paraphrase or re-derive it.
-- `prd-v2-reference.md` and `architecture-v2-reference.md` are **explicitly OUT OF
+  *(This file is gitignored — present in the local repo but not in the public repo.)*
+- `_bmad-output/planning-artifacts/prd-v2-reference.md` and
+  `_bmad-output/planning-artifacts/architecture-v2-reference.md` are **explicitly OUT OF
   SCOPE** (Thompson Sampling, four-network memory, Critic subagent, Q-values, etc.).
   Reaching for anything in those docs is the known scope-drift failure mode — stop
   and confirm with the user instead.

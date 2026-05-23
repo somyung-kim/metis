@@ -1,8 +1,11 @@
-# BMad user config (personal overrides)
-_bmad/**/*.user.toml
+# BMad framework + output (dev tooling, not part of the plugin)
+_bmad/
+_bmad-output/
+.claude/
 
-# Claude Code local/personal settings (machine-specific)
-.claude/settings.local.json
+# Planning docs kept as Markdown locally; raw .docx are not tracked
+metis-project-foundation.docx
+metis-v1-lean-spec.docx
 
 # macOS
 .DS_Store
