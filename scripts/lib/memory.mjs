@@ -105,7 +105,7 @@ export function findSimilar(db, taskText, limit = 3) {
 export function lastDelegations(db, n = 10) {
   return db
     .prepare(
-      'SELECT id, ts, task, task_type, provider, tag, followup_messages FROM delegations ORDER BY id DESC LIMIT ?'
+      'SELECT id, ts, task, task_type, provider, tag, followup_messages, result FROM delegations ORDER BY id DESC LIMIT ?'
     )
     .all(n);
 }

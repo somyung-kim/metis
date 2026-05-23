@@ -1,4 +1,4 @@
-const KNOWN_PROVIDERS = new Set(['codex', 'copilot']);
+export const KNOWN_PROVIDERS = new Set(['codex', 'copilot', 'claude']);
 
 // Routing rule per PRD §"Routing rule (deliberately dumb)":
 // Use the provider from the nearest tagged-good past delegation.
