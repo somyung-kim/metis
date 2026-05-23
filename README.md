@@ -3,7 +3,7 @@
 > A Claude Code plugin that delegates a coding task to the Codex CLI, records what
 > happened in a per-repo SQLite memory, and uses that memory to inform the next delegation.
 
-**Status:** v1 · Phase 2b merged · in usage period before Phase 3 · Apache 2.0 · Node ≥20. A
+**Status:** v1 · Phase 4 merged · at v1 Decision Point · MIT · Node ≥20. A
 personal tool in active verification — phases advance on real tagged-delegation data,
 not version bumps.
 
@@ -31,6 +31,10 @@ not version bumps.
 3. **Install + authenticate the Codex CLI.** Metis spawns `codex exec` as a
    subprocess under your ambient credentials; it does not manage Codex auth or billing.
 
+4. **(Optional) Install + authenticate the GitHub Copilot CLI** if you intend to use
+   the `copilot` provider. Same principle — Metis spawns it as a subprocess; auth and
+   billing are yours.
+
 Verify the plugin loaded with `/metis:status` — with no delegations yet it should print an empty summary, not an error.
 
 ---
@@ -39,23 +43,30 @@ Verify the plugin loaded with `/metis:status` — with no delegations yet it sho
 
 All three commands have `disable-model-invocation: true` — Claude never invokes them autonomously, only when you type the slash command.
 
-### `/metis:do "<task>"`
+### `/metis:do "<task>" [--provider codex|copilot|claude]`
 
-Delegate a coding task to Codex. Before invoking Codex, Metis runs an FTS5 query
+Delegate a coding task. Before invoking the provider, Metis runs an FTS5 query
 against this repo's prior delegations and injects up to three of the most similar
 past tasks (with their tagged outcomes) into the prompt as reference context.
 
+The provider is selected automatically by the router (see "How it works"). Use
+`--provider` to override it for a single delegation.
+
 ```
 /metis:do "add a /health endpoint returning the build SHA"
+/metis:do "refactor the auth middleware" --provider claude
 ```
 
-### `/metis:tag good|bad`
+### `/metis:tag good|bad [id]`
 
-Tag the most recent delegation. The tag is v1's success signal — it answers "did you have to re-explain context or correct the result?"
+Tag a delegation. Omit `id` to tag the most recent one; supply the numeric ID
+(visible in `/metis:status`) to tag a specific past delegation. The tag is v1's
+success signal — it answers "did you have to re-explain context or correct the result?"
 
 ```
 /metis:tag good
 /metis:tag bad
+/metis:tag good 42
 ```
 
 ### `/metis:status`
@@ -70,11 +81,11 @@ Example output:
 
 ```
 Last 10 delegations:
-  [✓] 2026-05-20 14:32  feature (codex)       add a /health endpoint returning the build SHA
-  [✗] 2026-05-20 11:08  fix (codex)           fix the off-by-one in pagination
+  [✓] 2026-05-20 14:32  feature (claude)      add a /health endpoint returning the build SHA
+  [✗] 2026-05-20 11:08  fix (copilot)         fix the off-by-one in pagination
   [~] 2026-05-19 22:14  explain (codex)       what does scripts/lib/retrieval.mjs do
-  [✓] 2026-05-19 17:51  refactor (codex)      split do.md command logic into helpers
-  [✓] 2026-05-19 09:02  feature (codex)       wire up the weather provider to the dashboard
+  [✓] 2026-05-19 17:51  refactor (claude)     split do.md command logic into helpers
+  [✓] 2026-05-19 09:02  feature (copilot)     wire up the weather provider to the dashboard
 
 Weekly summary (last 7 days):
   Total delegations: 5
@@ -99,11 +110,18 @@ Markers: `✓` good · `✗` bad · `~` untagged.
   produce a syntactically invalid MATCH query. Rows with `NULL` result (aborted
   or failed delegations) are excluded from retrieval.
 - **Prompt injection is byte-for-byte.** The exact `<past_work>` block sent to
-  Codex is also stored in `context_injected`. Best-effort cap of ~1,500 tokens;
+  the provider is also stored in `context_injected`. Best-effort cap of ~1,500 tokens;
   each entry's `result` field is truncated to 500 chars.
+- **Routing is deliberately simple.** The router picks the provider from the nearest
+  tagged-good past delegation surfaced by retrieval; it falls back to Codex when no
+  tagged-good match exists. Override for a single delegation with `--provider`.
+- **Follow-up messages are captured.** A `UserPromptSubmit` hook appends subsequent
+  user messages to the most recent delegation row's `followup_messages` field, so
+  the correction or clarification stays with the delegation that prompted it.
 - **Failure contract.** The row is `INSERT`'d before the provider call (with `NULL`
   result) and `UPDATE`'d on success. Abort or failure leaves it with `NULL` — never
-  partial. `/metis:tag` targets the latest row by `id DESC`, never `ts` (second-granularity timestamps collide on rapid calls).
+  partial. `/metis:tag` targets a row by `id DESC` (or an explicit ID), never `ts`
+  (second-granularity timestamps collide on rapid calls).
 
 The binding spec is [`_bmad-output/planning-artifacts/prd.md`](_bmad-output/planning-artifacts/prd.md).
 Implementation notes in that file are normative.
@@ -116,7 +134,8 @@ Implementation notes in that file are normative.
 - ✓ **Phase 1.1** — FTS5 sync triggers + backfill (closes a Phase 1 spec defect)
 - ✓ **Phase 2a** — FTS5 retrieval + prompt injection
 - ✓ **Phase 2b** — `/metis:status` (last 10 + 7-day summary)
-- ⏳ **Phase 3** — Copilot provider + routing (gated on ~30 real tagged delegations across Phases 1–2)
+- ✓ **Phase 3** — Copilot provider + routing; `--provider` override flag; tag-by-ID
+- ✓ **Phase 4** — Claude provider via native Agent subagent; follow-up message capture
 
 Thompson Sampling, four-network memory, a Critic subagent, semantic embeddings,
 git-attribution outcome signals, and cross-repo aggregation are all **out of v1
@@ -146,5 +165,5 @@ usage period shows real need.
 
 ## License
 
-Apache 2.0. Plugin structure follows the
+MIT. Plugin structure follows the
 [`openai/codex-plugin-cc`](https://github.com/openai/codex-plugin-cc) pattern.
