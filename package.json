@@ -8,6 +8,9 @@
   "engines": {
     "node": ">=20"
   },
+  "scripts": {
+    "test": "node --test"
+  },
   "dependencies": {
     "better-sqlite3": "^12.10.0"
   }

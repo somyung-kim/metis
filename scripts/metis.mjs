@@ -15,20 +15,12 @@ import { formatStatus } from './lib/status.mjs';
 import * as codex from './lib/providers/codex.mjs';
 import * as copilot from './lib/providers/copilot.mjs';
 import { pickProvider, KNOWN_PROVIDERS } from './lib/router.mjs';
+import { classifyTaskType } from './lib/classify.mjs';
 
 // Subprocess adapters only. 'claude' is a routable provider but is delegated to
 // at the do.md instruction layer via the Agent tool, not from this script.
 const PROVIDERS = { codex, copilot };
 const SUBPROCESS_PROVIDERS = new Set(Object.keys(PROVIDERS));
-
-function classifyTaskType(task) {
-  const t = task.toLowerCase();
-  if (/\b(fix|bug|broken|error|crash|fails?|failing)\b/.test(t)) return 'fix';
-  if (/\b(review|check|audit|inspect)\b/.test(t)) return 'review';
-  if (/\b(refactor|clean ?up|simplify|restructure)\b/.test(t)) return 'refactor';
-  if (/\b(explain|what does|how does|why does|describe)\b/.test(t)) return 'explain';
-  return 'feature';
-}
 
 function ensureMetisDir() {
   const metisDir = path.join(process.cwd(), '.metis');
