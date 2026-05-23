@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Claude Code plugin that delegates a coding task to Codex/Copilot CLI, remembers it, and uses that memory to inform the next delegation.",
   "type": "module",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "author": "Somyung",
   "engines": {
     "node": ">=20"
