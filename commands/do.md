@@ -67,9 +67,9 @@ mktemp -d "${TMPDIR:-/tmp}/metis-result-<ROW_ID>.XXXXXX"
 
 Substitute the rowId from the JSON before running `mktemp` (for example, `/tmp/metis-result-42.XXXXXX`). Treat stdout as `<RESULT_DIR>`, and set `<RESULT_FILE>` to `<RESULT_DIR>/result.txt`. Do not create `<RESULT_FILE>` with Bash.
 
-**2c.** Use the Write tool to drop the result into that tmp file:
+**2c.** Use the Write tool to drop the subagent's reply into that tmp file:
 - `file_path`: `<RESULT_FILE>`
-- `content`: the **exact result string** the Agent tool returned, byte-for-byte (do not summarize, trim, or modify)
+- `content`: the subagent's actual answer to the task — its content verbatim, with no paraphrasing, summarizing, or shortening. If the Claude Code runtime appends wrapper text around the reply (continuation hints, telemetry, session metadata, etc.), exclude that wrapper — only the subagent's own answer belongs in the result.
 
 **2d.** Use the Bash tool to run record with the generated path:
 

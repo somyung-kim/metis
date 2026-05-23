@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, rmdirSync } from 'node:fs';
 import path from 'node:path';
 import {
   openDb,
@@ -52,6 +52,17 @@ function readPayloadFile(p) {
     readError = err;
   }
   try { unlinkSync(p); } catch { /* best-effort cleanup */ }
+  // do.md creates a per-invocation directory via `mktemp -d` and writes the
+  // payload inside it. After unlinking the file, rmdir the parent so empty
+  // handoff dirs don't accumulate in $TMPDIR. Gate on the mktemp -d basename
+  // pattern so we don't touch the parent dir when a direct-CLI user passes
+  // `--from-file /some/dir/file.txt` from their own filesystem. rmdir only
+  // succeeds on an empty dir, so even with a matching pattern this no-ops if
+  // anything else lives there.
+  const parent = path.dirname(p);
+  if (/^metis-(task|result-\d+)\.[A-Za-z0-9]{6,}$/.test(path.basename(parent))) {
+    try { rmdirSync(parent); } catch { /* best-effort */ }
+  }
   if (readError) {
     console.error(`metis: cannot read ${p}: ${readError.message}`);
     process.exit(1);
