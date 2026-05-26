@@ -1,0 +1,13 @@
+{
+  "name": "metis",
+  "description": "Single-plugin marketplace for Metis — a Claude Code plugin that delegates coding tasks to Codex/Copilot/Claude, remembers what happened per-repo, and uses that memory to inform the next delegation.",
+  "owner": {
+    "name": "Somyung Kim"
+  },
+  "plugins": [
+    {
+      "name": "metis",
+      "source": "./"
+    }
+  ]
+}
