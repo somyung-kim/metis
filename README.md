@@ -20,12 +20,27 @@ record of why, and what would need to be true to revisit it.
    npm install
    ```
 
-2. **Register with Claude Code** — either as a persistent plugin or for one session:
+2. **Register with Claude Code** — either as a persistent plugin or for one session.
+
+   Persistent (recommended for daily use). The repo ships a single-plugin
+   marketplace manifest at `.claude-plugin/marketplace.json`, so the flow is
+   marketplace-add then plugin-install:
 
    ```
-   claude plugin install /absolute/path/to/metis     # persistent
-   claude --plugin-dir /absolute/path/to/metis        # dev / one-shot
-   claude plugin validate .                           # sanity-check the manifest
+   claude plugin marketplace add /absolute/path/to/metis
+   claude plugin install metis@metis
+   ```
+
+   Dev / one-shot (no install, current session only):
+
+   ```
+   claude --plugin-dir /absolute/path/to/metis
+   ```
+
+   Sanity-check the manifest at any time:
+
+   ```
+   claude plugin validate .
    ```
 
 3. **Install + authenticate the Codex CLI.** Metis spawns `codex exec` as a
