@@ -1,11 +1,11 @@
 # Metis
 
-> A Claude Code plugin that delegates a coding task to the Codex CLI, records what
-> happened in a per-repo SQLite memory, and uses that memory to inform the next delegation.
+> A Claude Code plugin that delegates a coding task to the Codex, Copilot, or Claude CLI,
+> records what happened in a per-repo SQLite memory, and uses that memory to inform the next delegation.
 
-**Status:** v1 · Phase 4 merged · at v1 Decision Point · MIT · Node ≥20. A
-personal tool in active verification — phases advance on real tagged-delegation data,
-not version bumps.
+**Status:** v1 · released as `v0.1.0` · MIT · Node ≥20. v2 is deferred pending
+real-usage evidence — see [`docs/v2-notes.md`](docs/v2-notes.md) for the design
+record of why, and what would need to be true to revisit it.
 
 ---
 
@@ -136,7 +136,9 @@ Markers: `✓` good · `✗` bad · `~` untagged.
 
 Thompson Sampling, four-network memory, a Critic subagent, semantic embeddings,
 git-attribution outcome signals, and cross-repo aggregation are all **out of v1
-by design**.
+by design**. The honest version of *why* — including the credit-assignment
+problem at the heart of v2 and the gate order ("measurement before mechanism")
+any future attempt should follow — is in [`docs/v2-notes.md`](docs/v2-notes.md).
 
 ---
 
