@@ -1,6 +1,6 @@
 # Metis
 
-> A Claude Code plugin that delegates a coding task to the Codex, Copilot, or Claude CLI,
+> A Claude Code and Codex plugin that delegates a coding task to Codex, Copilot, or Claude,
 > records what happened in a per-repo SQLite memory, and uses that memory to inform the next delegation.
 
 **Status:** v1 · released as `v0.1.0` · MIT · Node ≥20. v2 is deferred pending
@@ -43,22 +43,40 @@ record of why, and what would need to be true to revisit it.
    claude plugin validate .
    ```
 
-3. **Install + authenticate the Codex CLI.** Metis spawns `codex exec` as a
+3. **Register with Codex.** The existing marketplace manifest is compatible with
+   Codex, and the repository also ships a Codex skills-plugin manifest.
+
+   ```
+   codex plugin marketplace add /absolute/path/to/metis
+   codex plugin add metis@metis
+   ```
+
+   Start a new Codex conversation after installation so the `$metis` skill is loaded.
+
+4. **Install + authenticate the Codex CLI.** Metis spawns `codex exec` as a
    subprocess under your ambient credentials; it does not manage Codex auth or billing.
 
-4. **(Optional) Install + authenticate the GitHub Copilot CLI** if you intend to use
+5. **(Optional) Install + authenticate the GitHub Copilot CLI** if you intend to use
    the `copilot` provider. Same principle — Metis spawns it as a subprocess; auth and
    billing are yours.
 
-Verify the plugin loaded with `/metis:status` — with no delegations yet it should print an empty summary, not an error.
+6. **(Optional) Install + authenticate Claude Code** if you intend to select Claude
+   from Codex or the direct Metis CLI. Those hosts spawn `claude -p`; inside Claude
+   Code, Metis continues to use a native Agent subagent. When Claude Code is logged
+   in through a Claude plan, `claude -p` uses that subscription's usage allowance.
+   API-key authentication is billed separately.
+
+Verify the plugin loaded with `/metis:status` in Claude Code or `$metis status` in
+Codex. With no delegations yet it should print an empty summary, not an error.
 
 ---
 
 ## Commands
 
-All three commands have `disable-model-invocation: true` — Claude never invokes them autonomously, only when you type the slash command.
+Claude's three commands and Codex's `$metis` skill are user-invoked only. Provider
+delegation therefore starts only after an explicit Metis request.
 
-### `/metis:do "<task>" [--provider codex|copilot|claude]`
+### `/metis:do "<task>" [--provider ...]` or `$metis do "<task>" [--provider ...]`
 
 Delegate a coding task. Before invoking the provider, Metis runs an FTS5 query
 against this repo's prior delegations and injects up to three of the most similar
@@ -72,7 +90,7 @@ The provider is selected automatically by the router (see "How it works"). Use
 /metis:do "refactor the auth middleware" --provider claude
 ```
 
-### `/metis:tag good|bad [id]`
+### `/metis:tag good|bad [id]` or `$metis tag good|bad [id]`
 
 Tag a delegation. Omit `id` to tag the most recent one; supply the numeric ID
 (visible in `/metis:status`) to tag a specific past delegation. The tag is v1's
@@ -84,7 +102,7 @@ success signal — it answers "did you have to re-explain context or correct the
 /metis:tag good 42
 ```
 
-### `/metis:status`
+### `/metis:status` or `$metis status`
 
 Print the last 10 delegations and a rolling 7-day summary. Takes no arguments.
 
@@ -130,9 +148,9 @@ Markers: `✓` good · `✗` bad · `~` untagged.
 - **Routing is deliberately simple.** The router picks the provider from the nearest
   tagged-good past delegation surfaced by retrieval; it falls back to Codex when no
   tagged-good match exists. Override for a single delegation with `--provider`.
-- **Follow-up messages are captured.** A `UserPromptSubmit` hook appends subsequent
-  user messages to the most recent delegation row's `followup_messages` field, so
-  the correction or clarification stays with the delegation that prompted it.
+- **Follow-up messages are captured in Claude Code.** Its `UserPromptSubmit` hook
+  appends subsequent user messages to the most recent delegation row's
+  `followup_messages` field. Codex-hosted delegations leave this field unchanged.
 - **Failure contract.** The row is `INSERT`'d before the provider call (with `NULL`
   result) and `UPDATE`'d on success. Abort or failure leaves it with `NULL` — never
   partial. `/metis:tag` targets a row by `id DESC` (or an explicit ID), never `ts`
@@ -148,6 +166,7 @@ Markers: `✓` good · `✗` bad · `~` untagged.
 - ✓ **Phase 2b** — `/metis:status` (last 10 + 7-day summary)
 - ✓ **Phase 3** — Copilot provider + routing; `--provider` override flag; tag-by-ID
 - ✓ **Phase 4** — Claude provider via native Agent subagent; follow-up message capture
+- ✓ **Codex host** — `$metis` skill with Codex/Copilot/Claude CLI delegation
 
 Thompson Sampling, four-network memory, a Critic subagent, semantic embeddings,
 git-attribution outcome signals, and cross-repo aggregation are all **out of v1

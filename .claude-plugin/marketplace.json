@@ -1,13 +1,21 @@
 {
   "name": "metis",
-  "description": "Single-plugin marketplace for Metis — a Claude Code plugin that delegates coding tasks to Codex/Copilot/Claude, remembers what happened per-repo, and uses that memory to inform the next delegation.",
+  "description": "Single-plugin marketplace for Metis, a Claude Code and Codex plugin that delegates coding tasks, remembers outcomes per repo, and reuses relevant past work.",
   "owner": {
     "name": "Somyung Kim"
+  },
+  "interface": {
+    "displayName": "Metis"
   },
   "plugins": [
     {
       "name": "metis",
-      "source": "./"
+      "source": "./",
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
     }
   ]
 }

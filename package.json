@@ -1,7 +1,7 @@
 {
   "name": "metis",
   "version": "0.1.0",
-  "description": "Claude Code plugin that delegates a coding task to Codex/Copilot CLI, remembers it, and uses that memory to inform the next delegation.",
+  "description": "Claude Code and Codex plugin that delegates coding tasks to Codex, Copilot, or Claude and reuses per-repo memory.",
   "type": "module",
   "license": "MIT",
   "author": "Somyung",
