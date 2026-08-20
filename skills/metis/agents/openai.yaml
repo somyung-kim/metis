@@ -1,0 +1,6 @@
+interface:
+  display_name: "Metis"
+  short_description: "Delegate coding tasks with per-repo memory."
+  default_prompt: "Use $metis to delegate this coding task."
+policy:
+  allow_implicit_invocation: false

@@ -14,13 +14,13 @@ import { buildPrompt } from './lib/retrieval.mjs';
 import { formatStatus } from './lib/status.mjs';
 import * as codex from './lib/providers/codex.mjs';
 import * as copilot from './lib/providers/copilot.mjs';
+import * as claude from './lib/providers/claude.mjs';
 import { pickProvider, KNOWN_PROVIDERS } from './lib/router.mjs';
 import { classifyTaskType } from './lib/classify.mjs';
 
-// Subprocess adapters only. 'claude' is a routable provider but is delegated to
-// at the do.md instruction layer via the Agent tool, not from this script.
-const PROVIDERS = { codex, copilot };
-const SUBPROCESS_PROVIDERS = new Set(Object.keys(PROVIDERS));
+// Claude Code's do.md keeps its native Agent branch for Claude. Direct CLI and
+// other plugin hosts use these subprocess adapters for all three providers.
+const PROVIDERS = { codex, copilot, claude };
 
 function ensureMetisDir() {
   const metisDir = path.join(process.cwd(), '.metis');
@@ -93,8 +93,7 @@ async function runPrepare(task, forcedProvider) {
 }
 
 // Compatibility path for direct CLI callers. /metis:do uses the split
-// prepare/delegate/record flow so it can invoke Claude via the Agent tool;
-// direct CLI constrains auto-routing to subprocess providers.
+// prepare/delegate/record flow so Claude Code can keep its native Agent branch.
 async function runDo(task, forcedProvider) {
   if (!task) {
     console.error('usage: metis do "<task>" [--provider <name>]');
@@ -110,10 +109,10 @@ async function runDo(task, forcedProvider) {
   const past = findSimilar(db, task, 3);
   const { prompt, contextInjected } = buildPrompt(past, task);
   const routedProvider = pickProvider(past);
-  const providerName = forcedProvider ?? (SUBPROCESS_PROVIDERS.has(routedProvider) ? routedProvider : 'codex');
+  const providerName = forcedProvider ?? routedProvider;
   const provider = PROVIDERS[providerName];
   if (!provider) {
-    console.error(`metis: provider '${providerName}' requires /metis:do because it uses the Claude Agent tool`);
+    console.error(`metis: provider '${providerName}' is unavailable in the direct CLI`);
     process.exit(1);
   }
 
@@ -142,9 +141,8 @@ async function runDo(task, forcedProvider) {
   }
 }
 
-// delegate: subprocess path for codex/copilot. Reads the row's provider+prompt,
-// spawns the adapter, writes the result. 'claude' is rejected — it belongs to
-// the Agent-tool path in do.md.
+// delegate: subprocess path for Codex, Copilot, or non-Claude hosts invoking
+// Claude. Reads the row's provider+prompt, spawns the adapter, writes the result.
 async function runDelegate(rowIdArg) {
   if (!/^[1-9]\d*$/.test(rowIdArg ?? '')) {
     console.error('usage: metis delegate <rowId>');

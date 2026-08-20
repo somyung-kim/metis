@@ -4,10 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-This is the **development repository for Metis itself** — a Claude Code plugin that
-delegates a coding task to the Codex CLI (later Copilot), records it to a per-repo
-SQLite memory, and uses that memory to inform the next delegation. It is not a
-typical app: the deliverable is the plugin in this repo.
+This is the **development repository for Metis itself** — a Claude Code and Codex
+plugin that delegates a coding task to Codex, Copilot, or Claude, records it to a
+per-repo SQLite memory, and uses that memory to inform the next delegation. It is
+not a typical app: the deliverable is the plugin in this repo.
 
 Development is **PRD-driven and phased**. Phase 1 (scaffold + Codex delegation) is
 built and merged. Phase 2 = FTS5 retrieval + `/metis:status`. Phase 3 = Copilot
@@ -74,9 +74,11 @@ Claude to run the script via the Bash tool) → `scripts/metis.mjs` dispatch →
   collides on rapid calls).
 - **Metis is non-intrusive:** it writes its own `.metis/.gitignore` (`*` +
   `!.gitignore`) and never modifies the host repo's `.gitignore`.
-- Delegation auth/billing is the user's ambient `codex` setup; Metis manages
-  neither. A future "Claude provider" must use Claude Code's native Task subagent,
-  **not `claude -p`** (post-2026-06-15 separate Agent SDK credit pool).
+- Delegation auth/billing is ambient provider setup; Metis manages neither. The
+  Claude Code host uses its native Task subagent. Direct CLI and Codex-hosted
+  delegation use `claude -p`, which still draws from Claude subscription usage
+  when authenticated through a Claude plan; the announced June 2026 separate
+  Agent SDK credit pool was paused before taking effect.
 
 ## Working norms (enforced in this project)
 

@@ -1,0 +1,28 @@
+{
+  "name": "metis",
+  "version": "0.1.0",
+  "description": "Delegate coding tasks to Codex, Copilot, or Claude, remember the outcomes, and reuse relevant past work.",
+  "author": {
+    "name": "Somyung Kim",
+    "url": "https://github.com/somyung-kim"
+  },
+  "homepage": "https://github.com/somyung-kim/metis",
+  "repository": "https://github.com/somyung-kim/metis",
+  "license": "MIT",
+  "keywords": ["coding", "delegation", "memory", "codex", "claude", "copilot"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Metis",
+    "shortDescription": "Delegate coding tasks with per-repo memory.",
+    "longDescription": "Route coding tasks to Codex, Copilot, or Claude, record the result in per-repository SQLite memory, and reuse relevant past work on later delegations.",
+    "developerName": "Somyung Kim",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "websiteURL": "https://github.com/somyung-kim/metis",
+    "defaultPrompt": [
+      "Delegate this coding task with Metis.",
+      "Show my recent Metis delegations.",
+      "Tag the latest Metis delegation as good."
+    ]
+  }
+}
